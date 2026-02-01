@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.billbill2.dao.CommentDao">
+    <!-- 增联更新，避免触发rpid唯一索引报错-->
+    <insert id="batchUpsertComments">
+        INSERT INTO `comment` (name,sex,area,`comment`,BvNum,rpid)
+        VALUES
+        <foreach collection="commentList" item="item" separator=",">
+            ( #{item.name}, #{item.sex}, #{item.area}, #{item.comment}, #{item.bvNum},#{item.rpid})
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+        -- 冲突时不更新，直接旧值=旧值
+        name=name
+    </insert>
+
+    <!-- 根据BV号查询所有评论 -->
+    <select id="selectByBvNum" resultType="com.billbill2.entity.Comment">
+        select name,sex,area,`comment`,BvNum from `comment`
+        where  BvNum=#{bvNum};
+    </select>
+</mapper>

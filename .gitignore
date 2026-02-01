@@ -1,0 +1,24 @@
+# 编辑器配置（忽略 IDEA 和 VS Code）
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+
+# Maven 编译生成目录
+target/
+
+# 日志文件
+*.log
+logs/
+
+# 临时文件
+*.tmp
+*.bak
+
+# 系统隐藏文件
+.DS_Store
+Thumbs.db
+
+# Maven 编译生成目录
+target/

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>获取评论</title>
+</head>
+<body>
+<!--    <form th:action="@{/getComment}" method="post">-->
+<!--        <input name="BVNum" type="text" placeholder="输入BV号" />-->
+<!--        <input type="submit" name="tj" value="提交">-->
+<!--    </form>-->
+    <div class="page-set">
+        <input id="BVNum" name="BVNum" type="text" placeholder="输入BV号" />
+        <h3>获取评论页数配置</h3>
+        <!-- 1. 开始页下拉框（示例：1-20页，可按需扩展） -->
+        <label for="startPage">开始页：</label>
+        <select id="startPage" name="startPage">
+            <!-- 动态生成选项（也可手动写，这里用JS动态生成更灵活） -->
+        </select>
+
+        <!-- 2. 结束页下拉框 -->
+        <label for="endPage">结束页：</label>
+        <select id="endPage" name="endPage">
+            <!-- 动态生成选项 -->
+        </select>
+
+        <!-- 提交按钮 -->
+        <button id="submitBtn">提交到后端</button>
+    </div>
+    <div id="resultArea" style="margin-top: 20px; display: none;">
+        <div id="msgText" style="color: #333;"></div>
+        <a id="downloadLink" style="display: none; margin-top: 10px; color: #1677ff; font-size: 16px;" href="#">
+            📥 点击下载评论CSV文件
+        </a>
+    </div>
+    <script th:src="@{/js/GetCommentJS.js}"></script>
+</body>
+</html>
