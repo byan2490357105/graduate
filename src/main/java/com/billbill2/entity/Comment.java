@@ -1,6 +1,8 @@
 package com.billbill2.entity;
 
+import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
@@ -16,7 +18,7 @@ public class Comment {
     /** 评论内容 */
     private String comment;
     /** 视频BV号 */
-    @TableField("BvNum")
+    @TableId(value = "BvNum", type = IdType.INPUT) // 逻辑主键，绑定数据库列名：bv_num
     private String BvNum;
     /**评论rpid号，有unique约束*/
     private String rpid;

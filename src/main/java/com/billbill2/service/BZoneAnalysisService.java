@@ -1,0 +1,16 @@
+package com.billbill2.service;
+
+import com.baomidou.mybatisplus.extension.service.IService;
+import com.billbill2.entity.RegionData;
+
+import java.util.List;
+
+public interface BZoneAnalysisService extends IService<RegionData> {
+    /**
+     * 批量获取B站指定分区的视频播放数据
+     * @param regionDataList 视频数据列表
+     * @return 成功插入的数量
+     * 实现增量更新 有则不变 无则插入 避免触发唯一索引报错
+     */
+    int batchUpsertRegionData(List<RegionData> regionDataList);
+}

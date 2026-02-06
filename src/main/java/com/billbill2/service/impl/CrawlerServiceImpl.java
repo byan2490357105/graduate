@@ -19,6 +19,8 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -45,6 +47,77 @@ public class CrawlerServiceImpl implements CrawlerService {
     @Autowired
     @Qualifier("crawlExecutor")
     private Executor crawlExecutor;
+    
+    /**
+     * 存储运行中的Python进程，用于后续停止操作
+     */
+    private final Map<String, Process> runningProcesses = new ConcurrentHashMap<>();
+    
+    /**
+     * 存储当前运行的爬虫线程，用于后续停止操作
+     */
+    private volatile Thread crawlerThread = null;
+    
+    /**
+     * 标记爬虫是否正在执行
+     */
+    private volatile boolean isCrawlerRunning = false;
+
+    private CompletableFuture<String> executePythonScriptAsync(String scriptName, List<String> args) {
+        return CompletableFuture.supplyAsync(() -> {
+            String fullScriptPath = new File(pythonScriptPath, scriptName).getAbsolutePath();
+            
+            List<String> command = new ArrayList<>();
+            command.add(pythonExecPath);
+            command.add(fullScriptPath);
+            command.addAll(args);
+            
+            ProcessBuilder processBuilder = new ProcessBuilder(command);
+            processBuilder.environment().put("PYTHONIOENCODING", "UTF-8");
+            processBuilder.redirectErrorStream(true);
+
+            StringBuilder output = new StringBuilder();
+            Process process = null;
+            try {
+                process = processBuilder.start();
+                // 存储进程引用
+                String processKey = scriptName + "_" + String.join("_", args);
+                runningProcesses.put(processKey, process);
+                
+                try (BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(process.getInputStream(), "UTF-8"))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        output.append(line).append("\n");
+                    }
+                }
+                int exitCode = process.waitFor();
+                // 进程结束后移除引用
+                runningProcesses.remove(processKey);
+                
+                if (exitCode == 0) {
+                    return output.toString().trim();
+                } else {
+                    log.error("脚本执行失败（退出码：{}）：{}", exitCode, output);
+                    return "脚本执行失败（退出码：" + exitCode + "）：\n" + output;
+                }
+            } catch (IOException | InterruptedException e) {
+                // 如果是被中断，返回中断信息
+                if (e instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                    return "脚本执行被中断：" + e.getMessage();
+                }
+                log.error("调用脚本异常：{}", e.getMessage(), e);
+                return "调用脚本异常：" + e.getMessage();
+            } finally {
+                // 确保进程引用被移除
+                if (process != null) {
+                    String processKey = scriptName + "_" + String.join("_", args);
+                    runningProcesses.remove(processKey);
+                }
+            }
+        }, crawlExecutor);
+    }
 
     private String executePythonScript(String scriptName, List<String> args) {
         String fullScriptPath = new File(pythonScriptPath, scriptName).getAbsolutePath();
@@ -262,5 +335,131 @@ public class CrawlerServiceImpl implements CrawlerService {
         }
         
         return video;
+    }
+
+    @Override
+    public String getZoneIDData(String zoneID,String startPage,String endPage) {
+        return getZoneIDDataWithDuration(zoneID, startPage, endPage, 60); // 默认60分钟
+    }
+
+    @Override
+    public String getZoneIDDataWithDuration(String zoneID, String startPage, String endPage, int duration) {
+        // 标记爬虫正在执行
+        isCrawlerRunning = true;
+        log.info("设置爬虫状态为运行中");
+        
+        // 执行异步脚本，循环爬取直到时间结束
+        CompletableFuture.runAsync(() -> {
+            // 再次标记爬虫正在执行，确保状态正确
+            isCrawlerRunning = true;
+            log.info("异步任务开始，再次设置爬虫状态为运行中");
+            
+            // 保存当前线程引用
+            crawlerThread = Thread.currentThread();
+            
+            long startTime = System.currentTimeMillis();
+            long durationMs = duration * 60 * 1000;
+            long endTime = startTime + durationMs;
+            
+            log.info("开始循环爬取分区数据，持续时间：{}分钟，结束时间：{}", duration, new java.util.Date(endTime));
+            
+            // 循环执行爬虫，直到时间结束
+            while (System.currentTimeMillis() < endTime) {
+                // 检查是否有停止信号
+                if (Thread.currentThread().isInterrupted()) {
+                    log.info("爬虫被中断，结束循环爬取");
+                    break;
+                }
+                
+                try {
+                    List<String> args = new ArrayList<>();
+                    args.add(zoneID);
+                    args.add("1"); // 固定从第1页开始
+                    args.add("10"); // 固定到第10页结束
+                    
+                    log.info("开始执行爬虫，页码范围：1-10");
+                    String result = executePythonScript("getregiondata.py", args);
+                    log.info("爬虫执行完成，结果：{}", result);
+                    
+                    // 短暂休眠，避免过于频繁的请求
+                    Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    log.error("爬虫线程被中断：{}", e.getMessage(), e);
+                    Thread.currentThread().interrupt();
+                    break;
+                } catch (Exception e) {
+                    log.error("执行爬虫失败：{}", e.getMessage(), e);
+                    // 遇到异常后短暂休眠，避免无限循环报错
+                    try {
+                        Thread.sleep(10000);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+            
+            log.info("爬虫执行时间已到，结束循环爬取");
+            // 清除线程引用
+            crawlerThread = null;
+            // 标记爬虫执行完成
+            isCrawlerRunning = false;
+            log.info("设置爬虫状态为停止");
+        });
+        
+        // 返回一个提示信息，实际结果会在后台执行
+        return "爬取任务已启动，请等待执行完成。\n分区ID：" + zoneID + "，页码范围：1-10，持续时间：" + duration + "分钟";
+    }
+
+    @Override
+    public boolean stopCrawler() {
+        boolean stopped = false;
+        
+        // 中断爬虫线程
+        if (crawlerThread != null && crawlerThread.isAlive()) {
+            log.info("正在中断爬虫线程：{}", crawlerThread.getId());
+            crawlerThread.interrupt();
+            stopped = true;
+            log.info("爬虫线程已成功中断");
+        }
+        
+        // 遍历并终止所有运行中的进程
+        for (Map.Entry<String, Process> entry : runningProcesses.entrySet()) {
+            String processKey = entry.getKey();
+            Process process = entry.getValue();
+            
+            if (process != null && process.isAlive()) {
+                log.info("正在终止爬虫进程：{}", processKey);
+                process.destroy();
+                try {
+                    // 等待进程终止
+                    process.waitFor(5000, java.util.concurrent.TimeUnit.MILLISECONDS);
+                    if (!process.isAlive()) {
+                        log.info("爬虫进程已成功终止：{}", processKey);
+                        stopped = true;
+                    } else {
+                        log.warn("爬虫进程未能在5秒内终止：{}", processKey);
+                    }
+                } catch (InterruptedException e) {
+                    log.error("终止爬虫进程时发生异常：{}", e.getMessage(), e);
+                    Thread.currentThread().interrupt();
+                }
+            }
+            
+            // 移除进程引用
+            runningProcesses.remove(processKey);
+        }
+        
+        // 清除线程引用
+        crawlerThread = null;
+        // 标记爬虫执行完成
+        isCrawlerRunning = false;
+        
+        return stopped;
+    }
+
+    @Override
+    public boolean isCrawlerRunning() {
+        return isCrawlerRunning;
     }
 }

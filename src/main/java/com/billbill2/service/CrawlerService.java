@@ -48,4 +48,35 @@ public interface CrawlerService {
      * @return 视频数据对象
      */
     Video downloadVideoAndGetData(String bvNum, String savePath, boolean needDownload);
+
+    /**
+     * 调用爬虫获取分区数据
+     * @param zoneID 分区对应的编号
+     * @param startPage 起始页
+     * @param endPage 结束页
+     * @return 爬取/入库结果
+     */
+    String getZoneIDData(String zoneID,String startPage,String endPage);
+
+    /**
+     * 调用爬虫获取分区数据，支持指定持续时间
+     * @param zoneID 分区对应的编号
+     * @param startPage 起始页
+     * @param endPage 结束页
+     * @param duration 持续时间（分钟）
+     * @return 爬取/入库结果
+     */
+    String getZoneIDDataWithDuration(String zoneID, String startPage, String endPage, int duration);
+
+    /**
+     * 停止当前运行的爬虫
+     * @return 是否成功停止
+     */
+    boolean stopCrawler();
+
+    /**
+     * 查询爬虫是否正在执行
+     * @return 爬虫是否正在执行
+     */
+    boolean isCrawlerRunning();
 }

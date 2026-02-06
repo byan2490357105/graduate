@@ -1,14 +1,52 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <title>欢迎使用B站个人管理工具</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .nav {
+            margin-top: 30px;
+        }
+        .nav a {
+            display: block;
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #f0f0f0;
+            color: #333;
+            text-decoration: none;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .nav a:hover {
+            background-color: #e0e0e0;
+        }
+    </style>
 </head>
 <body>
-    <p>
-        B站管理系统
-    </p>
-    <a th:href="@{/toGetComment}">获取评论功能</a>
-    <a th:href="@{/toGetVideo}">获取视频功能</a>
+    <div class="container">
+        <h1>B站管理系统</h1>
+        <div class="nav">
+            <a th:href="@{/toGetComment}">获取评论功能</a>
+            <a th:href="@{/toGetVideo}">获取视频功能</a>
+            <a th:href="@{/toBZoneAnalysis}">B站分区数据分析</a>
+        </div>
+    </div>
 </body>
 </html>

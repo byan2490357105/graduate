@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>B站分区数据分析</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+        select {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #00a1d6;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0086b3;
+        }
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            border-left: 4px solid #00a1d6;
+        }
+        .error {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #fff2f0;
+            border-radius: 4px;
+            border-left: 4px solid #ff4d4f;
+            color: #ff4d4f;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>B站分区数据分析</h1>
+        
+        <div class="form-group">
+            <label for="zone">选择B站分区：</label>
+            <select id="zone" name="zone">
+                <option value="">请选择分区</option>
+                <!-- 分区选项将通过JavaScript动态生成 -->
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="duration">爬取数据持续时间（分钟）：</label>
+            <select id="duration" name="duration">
+                <option value="1">1</option>
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="15">15</option>
+                <option value="30">30</option>
+                <option value="60">60</option>
+            </select>
+        </div>
+        
+        <button id="submitBtn" onclick="submitZoneData()">获取数据</button>
+        <button id="stopBtn" onclick="stopCrawler()" style="margin-left: 10px; background-color: #ff4d4f;" disabled>提前结束爬虫</button>
+        
+        <div id="result" class="result" style="display: none;">
+            <h3>提交结果</h3>
+            <p id="resultContent"></p>
+        </div>
+        
+        <div id="error" class="error" style="display: none;">
+            <h3>错误信息</h3>
+            <p id="errorContent"></p>
+        </div>
+    </div>
+
+    <script src="/js/BZoneAnalysisJS.js"></script>
+</body>
+</html>
