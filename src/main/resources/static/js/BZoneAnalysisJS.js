@@ -6,20 +6,16 @@ const biliZones = [
     { name: "知识", id: "36" },
     { name: "影视", id: "181" },
     { name: "音乐", id: "3" },
-    { name: "动画", id: "1" },
-    { name: "时尚", id: "155" },
+    { name: "动画", id: "1" },//动画有点奇怪
+    { name: "时尚", id: "155" },//时尚没找到
     { name: "美食", id: "211" },
     { name: "汽车", id: "223" },
-    { name: "运动", id: "234" },
-    { name: "科技", id: "188" },
+    { name: "运动", id: "234" },//对不上
+    { name: "科技", id: "188" },//对不上
     { name: "动物圈", id: "217" },
     { name: "舞蹈", id: "129" },
-    { name: "国创", id: "167" },
+    { name: "国创", id: "167" },//从这里开始，貌似从https://api.bilibili.com/x/web-interface/region/feed/rcmd抓不到保
     { name: "鬼畜", id: "119" },
-    { name: "纪录片", id: "177" },
-    { name: "番剧", id: "13" },
-    { name: "电视剧", id: "11" },
-    { name: "电影", id: "23" }
 ];
 
 // 爬虫状态检查定时器ID

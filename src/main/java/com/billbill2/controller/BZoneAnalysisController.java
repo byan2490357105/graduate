@@ -35,6 +35,15 @@ public class BZoneAnalysisController {
     }
 
     /**
+     * 跳转到B站分区统计页面
+     * @return 页面视图
+     */
+    @GetMapping("toZoneStatistics")
+    public String toZoneStatistics() {
+        return "ZoneStatistics";
+    }
+
+    /**
      * 调用爬虫执行获取分区数据
      * @param zoneData 分区数据，格式：{"分区名": "鬼畜", "ID": "119", "duration": "5"}
      * @return 处理结果
