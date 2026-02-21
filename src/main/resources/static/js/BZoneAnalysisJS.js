@@ -261,3 +261,62 @@ function showError(content) {
     errorDiv.style.display = 'block';
     resultDiv.style.display = 'none';
 }
+
+// 收集分区评论
+function collectZoneComment() {
+    const zoneSelect = document.getElementById('zone');
+    const selectedId = zoneSelect.value;
+    const collectCommentBtn = document.getElementById('collectCommentBtn');
+    
+    // 检查是否已经有爬虫在运行
+    if (crawlerStatusIntervalId !== null) {
+        showError('爬虫正在运行中，请等待完成');
+        return;
+    }
+    
+    if (!selectedId) {
+        showError('请选择一个分区');
+        return;
+    }
+    
+    const selectedZone = biliZones.find(zone => zone.id === selectedId);
+    if (!selectedZone) {
+        showError('选择的分区无效');
+        return;
+    }
+    
+    const requestData = {
+        "分区名称": selectedZone.name,
+        "分区ID": selectedId
+    };
+    
+    // 禁用按钮并修改文本
+    collectCommentBtn.disabled = true;
+    collectCommentBtn.textContent = '正在收集评论中';
+    
+    // 显示提交的数据
+    showResult('正在提交数据...');
+    
+    // 向后端提交数据
+    fetch('/batchGetZoneComment', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        showResult('提交成功！\n' + JSON.stringify(data, null, 2));
+        // 延迟2秒后开始定时查询爬虫状态，确保爬虫已经开始执行
+        setTimeout(() => {
+            startCrawlerStatusCheck();
+        }, 2000);
+    })
+    .catch(error => {
+        showError('提交失败：' + error.message);
+        // 恢复按钮状态
+        collectCommentBtn.disabled = false;
+        collectCommentBtn.textContent = '将收集分区评论';
+    });
+}

@@ -1,5 +1,6 @@
 package com.billbill2.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.billbill2.dao.BZoneDataMapper;
@@ -8,7 +9,10 @@ import com.billbill2.service.BZoneGetDataService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -39,5 +43,24 @@ public class BZoneGetDataServiceImpl extends ServiceImpl<BZoneDataMapper,NewRegi
             return DataList.size();
         else
             return 0;
+    }
+
+    @Override
+    public List<Map<String, String>> getBZoneAllAidAndBvNum(Integer pidV2) {
+        LambdaQueryWrapper<NewRegionData> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(NewRegionData::getPidV2, pidV2);
+        queryWrapper.isNotNull(NewRegionData::getAid);
+        
+        List<NewRegionData> dataList = this.list(queryWrapper);
+        
+        List<Map<String, String>> result = new ArrayList<>();
+        for (NewRegionData data : dataList) {
+            Map<String, String> map = new HashMap<>();
+            map.put("bvNum", data.getBvNum());
+            map.put("aid", data.getAid() != null ? data.getAid().toString() : "");
+            result.add(map);
+        }
+        
+        return result;
     }
 }

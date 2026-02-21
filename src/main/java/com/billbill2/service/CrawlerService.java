@@ -1,8 +1,10 @@
 package com.billbill2.service;
 
+
 import com.billbill2.DTO.CommentRequestDTO;
 import com.billbill2.entity.Video;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 public interface CrawlerService {
@@ -12,7 +14,6 @@ public interface CrawlerService {
      * @return 爬取/入库结果
      */
     String getCommendData(CommentRequestDTO request);
-
 
     /**
      * 下载B站视频(yt-dlp不调用Python版）
@@ -68,4 +69,11 @@ public interface CrawlerService {
      * @return 爬虫是否正在执行
      */
     boolean isCrawlerRunning();
+
+    /**
+     * 批量调用Python爬虫获取评论（支持多个{bv号,aid}对）
+     * @param args 参数列表，格式：[bv1, aid1, bv2, aid2, ...]
+     * @return 爬取/入库结果
+     */
+    String batchGetCommentByAid(List<String> args);
 }

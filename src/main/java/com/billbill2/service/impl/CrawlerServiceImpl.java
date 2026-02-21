@@ -180,6 +180,42 @@ public class CrawlerServiceImpl implements CrawlerService {
     }
 
     @Override
+    public String batchGetCommentByAid(List<String> args) {
+        log.info("开始批量爬取评论，参数数量：{}", args.size());
+        
+        // 标记爬虫正在执行
+        isCrawlerRunning = true;
+        log.info("设置爬虫状态为运行中");
+        
+        // 异步执行脚本
+        CompletableFuture.runAsync(() -> {
+            // 再次标记爬虫正在执行，确保状态正确
+            isCrawlerRunning = true;
+            log.info("异步任务开始，再次设置爬虫状态为运行中");
+            
+            // 保存当前线程引用
+            crawlerThread = Thread.currentThread();
+            
+            try {
+                log.info("开始执行批量爬虫，参数数量：{}", args.size());
+                String result = executePythonScript("getCommentByAid.py", args);
+                log.info("批量爬虫执行完成，结果：{}", result);
+            } catch (Exception e) {
+                log.error("执行批量爬虫失败：{}", e.getMessage(), e);
+            } finally {
+                // 清除线程引用
+                crawlerThread = null;
+                // 标记爬虫执行完成
+                isCrawlerRunning = false;
+                log.info("设置爬虫状态为停止");
+            }
+        }, crawlExecutor);
+        
+        // 返回一个提示信息，实际结果会在后台执行
+        return "批量爬取任务已启动，请等待执行完成。\n参数数量：" + args.size();
+    }
+
+    @Override
     @Retryable(maxAttempts = 3, backoff = @org.springframework.retry.annotation.Backoff(delay = 2000))
     public Long donwloadVideoLocal(String bvNum, String name, String savePath) {
         String fileName = "【" + FileOperate.filterIllegalFileName(name) + "】-" + bvNum + ".mp4";

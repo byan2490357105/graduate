@@ -3,7 +3,6 @@ import requests
 import time
 import random
 import hashlib
-import json
 
 SPRING_BOOT_BATCH_URL = "http://localhost:8080/api/bilibili/regiondata/batch-save"
 BATCH_SIZE = 300
@@ -89,6 +88,7 @@ def get_bilibili_gc_video_new(display_id, from_region,pid_v2):
                     "bvNum": bv_num,
                     "upName": video.get("author", {}).get("name", ""),
                     "upId": int(video.get("author", {}).get("mid", 0)) if video.get("author", {}).get("mid") else 0,
+                    "aid":video.get("aid",0),
                     "playCount": int(video.get("stat", {}).get("view", 0)),
                     "likeCount": int(video.get("stat", {}).get("like", 0)),
                     "danmukuCount": int(video.get("stat", {}).get("danmaku", 0)),

@@ -1,5 +1,6 @@
 package com.billbill2.controller;
 
+import com.billbill2.service.BZoneGetDataService;
 import com.billbill2.service.CrawlerService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -19,6 +21,7 @@ import java.util.Map;
 public class GetRegionDataController {
 
     private final CrawlerService crawlerService;
+    private final BZoneGetDataService bZoneGetDataService;
 
     /**
      * 跳转到B站分区分析页面
@@ -166,6 +169,63 @@ public class GetRegionDataController {
 
         } catch (Exception e) {
             log.error("查询爬虫状态失败：{}", e.getMessage(), e);
+
+            Map<String, Object> errorMap = new HashMap<>();
+            errorMap.put("code", 500);
+            errorMap.put("msg", "服务器内部错误：" + e.getMessage());
+
+            return ResponseEntity.internalServerError().body(errorMap);
+        }
+    }
+
+    /**
+     * 获取分区所有视频的{bv号,aid}列表
+     * @param request 请求参数，格式：{"分区名称": "分区名称", "分区ID": "分区ID"}
+     * @return 处理结果
+     */
+    @PostMapping("getZoneAidAndBvNum")
+    @ResponseBody
+    public ResponseEntity<?> getZoneAidAndBvNum(@RequestBody Map<String, String> request) {
+        try {
+            log.info("接收到获取分区{bv号,aid}列表请求：{}", request);
+
+            // 提取分区信息
+            String zoneName = request.get("分区名称");
+            String zoneId = request.get("分区ID");
+
+            if (zoneId == null) {
+                Map<String, Object> errorMap = new HashMap<>();
+                errorMap.put("code", 400);
+                errorMap.put("msg", "缺少必要参数（分区ID）");
+                return ResponseEntity.badRequest().body(errorMap);
+            }
+
+            // 验证分区ID
+            int pidV2;
+            try {
+                pidV2 = Integer.parseInt(zoneId);
+            } catch (NumberFormatException e) {
+                Map<String, Object> errorMap = new HashMap<>();
+                errorMap.put("code", 400);
+                errorMap.put("msg", "分区ID格式错误");
+                return ResponseEntity.badRequest().body(errorMap);
+            }
+
+            // 调用服务获取分区的{bv号,aid}列表
+            List<Map<String, String>> bvAidList = bZoneGetDataService.getBZoneAllAidAndBvNum(pidV2);
+
+            // 构建成功响应
+            Map<String, Object> resultMap = new HashMap<>();
+            resultMap.put("code", 200);
+            resultMap.put("msg", "获取成功");
+            resultMap.put("分区名称", zoneName);
+            resultMap.put("分区ID", zoneId);
+            resultMap.put("data", bvAidList);
+
+            return ResponseEntity.ok(resultMap);
+
+        } catch (Exception e) {
+            log.error("获取分区{bv号,aid}列表失败：{}", e.getMessage(), e);
 
             Map<String, Object> errorMap = new HashMap<>();
             errorMap.put("code", 500);
