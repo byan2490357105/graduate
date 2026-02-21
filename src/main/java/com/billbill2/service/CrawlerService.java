@@ -11,7 +11,7 @@ public interface CrawlerService {
      * @param request 爬取参数
      * @return 爬取/入库结果
      */
-    String crawlAndSave(CommentRequestDTO request);
+    String getCommendData(CommentRequestDTO request);
 
 
     /**
@@ -50,23 +50,12 @@ public interface CrawlerService {
     Video downloadVideoAndGetData(String bvNum, String savePath, boolean needDownload);
 
     /**
-     * 调用爬虫获取分区数据
-     * @param zoneID 分区对应的编号
+     * 获取分区数据
+     * @param regionId 分区ID（新ID，鬼畜ID为1007）
      * @param startPage 起始页
-     * @param endPage 结束页
-     * @return 爬取/入库结果
+     * @param endPage 起始页
      */
-    String getZoneIDData(String zoneID,String startPage,String endPage);
-
-    /**
-     * 调用爬虫获取分区数据，支持指定持续时间
-     * @param zoneID 分区对应的编号
-     * @param startPage 起始页
-     * @param endPage 结束页
-     * @param duration 持续时间（分钟）
-     * @return 爬取/入库结果
-     */
-    String getZoneIDDataWithDuration(String zoneID, String startPage, String endPage, int duration);
+    String getRegionData(String regionId,String startPage,String endPage);
 
     /**
      * 停止当前运行的爬虫

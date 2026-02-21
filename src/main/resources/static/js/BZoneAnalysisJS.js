@@ -1,21 +1,37 @@
-// B站分区数据
+// B站分区数据（使用新分区ID）
 const biliZones = [
-    { name: "生活", id: "160" },
-    { name: "游戏", id: "4" },
-    { name: "娱乐", id: "5" },
-    { name: "知识", id: "36" },
-    { name: "影视", id: "181" },
-    { name: "音乐", id: "3" },
-    { name: "动画", id: "1" },//动画有点奇怪
-    { name: "时尚", id: "155" },//时尚没找到
-    { name: "美食", id: "211" },
-    { name: "汽车", id: "223" },
-    { name: "运动", id: "234" },//对不上
-    { name: "科技", id: "188" },//对不上
-    { name: "动物圈", id: "217" },
-    { name: "舞蹈", id: "129" },
-    { name: "国创", id: "167" },//从这里开始，貌似从https://api.bilibili.com/x/web-interface/region/feed/rcmd抓不到保
-    { name: "鬼畜", id: "119" },
+    { name: "动画", id: "1005" },
+    { name: "鬼畜", id: "1007" },
+    { name: "舞蹈", id: "1004" },
+    { name: "娱乐", id: "1002" },
+    { name: "科技数码", id: "1012" },
+    { name: "美食", id: "1020" },
+    { name: "游戏", id: "1008" },
+    { name: "音乐", id: "1003" },
+    { name: "影视", id: "1001" },
+    { name: "知识", id: "1010" },
+    { name: "资讯", id: "1009" },
+    { name: "小剧场", id: "1021" },
+    { name: "动物", id: "1024" },
+    { name: "家装房产", id: "1015" },
+    { name: "旅游出行", id: "1022" },
+    { name: "情感", id: "1027" },
+    { name: "汽车", id: "1013" },
+    { name: "vlog", id: "1029" },
+    { name: "户外潮流", id: "1016" },
+    { name: "三农", id: "1023" },
+    { name: "生活兴趣", id: "1030" },
+    { name: "时尚美妆", id: "1014" },
+    { name: "绘画", id: "1006" },
+    { name: "健身", id: "1017" },
+    { name: "亲子", id: "1025" },
+    { name: "生活经验", id: "1031" },
+    { name: "体育运动", id: "1018" },
+    { name: "人工智能", id: "1011" },
+    { name: "手工", id: "1019" },
+    { name: "健康", id: "1026" },
+    //分区：番剧，国创，综艺，电影，电视剧，纪录片，公益接口不同故不在此处
+
 ];
 
 // 爬虫状态检查定时器ID
@@ -48,8 +64,10 @@ function initZoneSelect() {
 function submitZoneData() {
     const zoneSelect = document.getElementById('zone');
     const selectedId = zoneSelect.value;
-    const durationSelect = document.getElementById('duration');
-    const duration = durationSelect.value;
+    const startPageInput = document.getElementById('startPage');
+    const endPageInput = document.getElementById('endPage');
+    const startPage = startPageInput.value;
+    const endPage = endPageInput.value;
     const submitBtn = document.getElementById('submitBtn');
     const stopBtn = document.getElementById('stopBtn');
     
@@ -64,6 +82,24 @@ function submitZoneData() {
         return;
     }
     
+    if (!startPage || !endPage) {
+        showError('请输入起始页和结束页');
+        return;
+    }
+    
+    const startPageNum = parseInt(startPage);
+    const endPageNum = parseInt(endPage);
+    
+    if (startPageNum < 1 || endPageNum < 1) {
+        showError('页码必须大于0');
+        return;
+    }
+    
+    if (startPageNum > endPageNum) {
+        showError('起始页不能大于结束页');
+        return;
+    }
+    
     const selectedZone = biliZones.find(zone => zone.id === selectedId);
     if (!selectedZone) {
         showError('选择的分区无效');
@@ -71,9 +107,9 @@ function submitZoneData() {
     }
     
     const zoneData = {
-        "分区名": selectedZone.name,
-        "ID": selectedZone.id,
-        "duration": duration
+        "爬取分区ID": selectedId,
+        "爬取起始页": startPage,
+        "爬取结束页": endPage
     };
     
     // 禁用按钮并修改文本

@@ -31,7 +31,7 @@ public class GetCommentController {
         //新建 HashMap 存储返回结果（替换 Map.of()）
         Map<String, Object> resultMap = new HashMap<>();
         try {
-            String result = crawlerService.crawlAndSave(commentRequestDTO);
+            String result = crawlerService.getCommendData(commentRequestDTO);
 
             // 成功时设置返回值
             resultMap.put("code", 200);

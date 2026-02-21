@@ -1,9 +1,9 @@
 package com.billbill2.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.billbill2.entity.Comment;
-import com.billbill2.entity.RegionData;
+import com.billbill2.entity.NewRegionData;
 import com.billbill2.service.BZoneAnalysisService;
+import com.billbill2.service.BZoneGetDataService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -24,15 +24,18 @@ public class ResponsePyRegionData {
     @Autowired
     private BZoneAnalysisService bZoneAnalysisService;
 
+    @Autowired
+    private BZoneGetDataService bZoneGetDataService;
+
     @PostMapping("/batch-save")
-    public ResponseEntity<Map<String, Object>> batchSave(@RequestBody List<RegionData> regionDataList) {
+    public ResponseEntity<Map<String, Object>> batchSave(@RequestBody List<NewRegionData> newregionDataList) {
         // 新建 HashMap 存储返回结果（替换 Map.of()）
         Map<String, Object> resultMap = new HashMap<>();
-        System.out.println(regionDataList.size());
+        System.out.println(newregionDataList.size());
         try {
 
             // 调用Service批量入库
-            int successCount = bZoneAnalysisService.batchUpsertRegionData(regionDataList);
+            int successCount = bZoneGetDataService.batchUpsertNewRegionData(newregionDataList);
 
             // 返回成功结果（和Python端的result.get("code")匹配）
             // 成功结果：用 HashMap.put() 替代 Map.of()
@@ -56,11 +59,11 @@ public class ResponsePyRegionData {
         Map<String, Object> resultMap = new HashMap<>();
         try {
             // 调用Service查询所有BV号
-            List<RegionData> allRegionData = bZoneAnalysisService.list();
+            List<NewRegionData> allRegionData = bZoneAnalysisService.list();
             
             // 提取所有BV号
             List<String> bvnums = allRegionData.stream()
-                    .map(RegionData::getBvNum)
+                    .map(NewRegionData::getBvNum)
                     .filter(bvNum -> bvNum != null && !bvNum.trim().isEmpty())
                     .distinct()
                     .collect(Collectors.toList());
@@ -96,32 +99,32 @@ public class ResponsePyRegionData {
             }
             
             // 构建查询条件
-            LambdaQueryWrapper<RegionData> queryWrapper = new LambdaQueryWrapper<>();
-            queryWrapper.eq(RegionData::getPidV2, pidV2);
+            LambdaQueryWrapper<NewRegionData> queryWrapper = new LambdaQueryWrapper<>();
+            queryWrapper.eq(NewRegionData::getPidV2, pidV2);
             
             // 根据sortField字段降序排序
             switch (sortField) {
                 case "playCount":
-                    queryWrapper.orderByDesc(RegionData::getPlayCount);
+                    queryWrapper.orderByDesc(NewRegionData::getPlayCount);
                     break;
                 case "likeCount":
-                    queryWrapper.orderByDesc(RegionData::getLikeCount);
+                    queryWrapper.orderByDesc(NewRegionData::getLikeCount);
                     break;
                 case "danmukuCount":
-                    queryWrapper.orderByDesc(RegionData::getDanmukuCount);
+                    queryWrapper.orderByDesc(NewRegionData::getDanmukuCount);
                     break;
-                case "replyCount":
-                    queryWrapper.orderByDesc(RegionData::getReplyCount);
-                    break;
-                case "favoriteCount":
-                    queryWrapper.orderByDesc(RegionData::getFavoriteCount);
-                    break;
-                case "coinCount":
-                    queryWrapper.orderByDesc(RegionData::getCoinCount);
-                    break;
-                case "shareCount":
-                    queryWrapper.orderByDesc(RegionData::getShareCount);
-                    break;
+//                case "replyCount":
+//                    queryWrapper.orderByDesc(NewRegionData::getReplyCount);
+//                    break;
+//                case "favoriteCount":
+//                    queryWrapper.orderByDesc(NewRegionData::getFavoriteCount);
+//                    break;
+//                case "coinCount":
+//                    queryWrapper.orderByDesc(NewRegionData::getCoinCount);
+//                    break;
+//                case "shareCount":
+//                    queryWrapper.orderByDesc(NewRegionData::getShareCount);
+//                    break;
                 default:
                     resultMap.put("code", 400);
                     resultMap.put("msg", "参数错误：不支持的sortField字段");
@@ -131,7 +134,7 @@ public class ResponsePyRegionData {
             
             // 查询第一条记录（最大值）
             queryWrapper.last("LIMIT 1");
-            RegionData regionData = bZoneAnalysisService.getOne(queryWrapper);
+            NewRegionData regionData = bZoneAnalysisService.getOne(queryWrapper);
             
             // 返回成功结果
             resultMap.put("code", 200);

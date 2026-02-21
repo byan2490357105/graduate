@@ -132,8 +132,13 @@ public class CrawlerServiceImpl implements CrawlerService {
         processBuilder.redirectErrorStream(true);
 
         StringBuilder output = new StringBuilder();
+        Process process = null;
         try {
-            Process process = processBuilder.start();
+            process = processBuilder.start();
+            // 存储进程引用
+            String processKey = scriptName + "_" + String.join("_", args);
+            runningProcesses.put(processKey, process);
+            
             try (BufferedReader reader = new BufferedReader(
                     new InputStreamReader(process.getInputStream(), "UTF-8"))) {
                 String line;
@@ -142,6 +147,9 @@ public class CrawlerServiceImpl implements CrawlerService {
                 }
             }
             int exitCode = process.waitFor();
+            // 进程结束后移除引用
+            runningProcesses.remove(processKey);
+            
             if (exitCode == 0) {
                 return output.toString().trim();
             } else {
@@ -151,11 +159,17 @@ public class CrawlerServiceImpl implements CrawlerService {
         } catch (IOException | InterruptedException e) {
             log.error("调用脚本异常：{}", e.getMessage(), e);
             return "调用脚本异常：" + e.getMessage();
+        } finally {
+            // 确保进程引用被移除
+            if (process != null) {
+                String processKey = scriptName + "_" + String.join("_", args);
+                runningProcesses.remove(processKey);
+            }
         }
     }
 
     @Override
-    public String crawlAndSave(CommentRequestDTO request) {
+    public String getCommendData(CommentRequestDTO request) {
         List<String> args = new ArrayList<>();
         args.add(request.getBvNum());
         args.add(request.getStartPage().toString());
@@ -338,17 +352,14 @@ public class CrawlerServiceImpl implements CrawlerService {
     }
 
     @Override
-    public String getZoneIDData(String zoneID,String startPage,String endPage) {
-        return getZoneIDDataWithDuration(zoneID, startPage, endPage, 60); // 默认60分钟
-    }
-
-    @Override
-    public String getZoneIDDataWithDuration(String zoneID, String startPage, String endPage, int duration) {
+    public String getRegionData(String regionId, String startPage, String endPage) {
+        log.info("开始爬取分区数据，分区ID={}，页码范围：{}-{}", regionId, startPage, endPage);
+        
         // 标记爬虫正在执行
         isCrawlerRunning = true;
         log.info("设置爬虫状态为运行中");
         
-        // 执行异步脚本，循环爬取直到时间结束
+        // 异步执行脚本
         CompletableFuture.runAsync(() -> {
             // 再次标记爬虫正在执行，确保状态正确
             isCrawlerRunning = true;
@@ -357,58 +368,28 @@ public class CrawlerServiceImpl implements CrawlerService {
             // 保存当前线程引用
             crawlerThread = Thread.currentThread();
             
-            long startTime = System.currentTimeMillis();
-            long durationMs = duration * 60 * 1000;
-            long endTime = startTime + durationMs;
-            
-            log.info("开始循环爬取分区数据，持续时间：{}分钟，结束时间：{}", duration, new java.util.Date(endTime));
-            
-            // 循环执行爬虫，直到时间结束
-            while (System.currentTimeMillis() < endTime) {
-                // 检查是否有停止信号
-                if (Thread.currentThread().isInterrupted()) {
-                    log.info("爬虫被中断，结束循环爬取");
-                    break;
-                }
-                
-                try {
-                    List<String> args = new ArrayList<>();
-                    args.add(zoneID);
-                    args.add("1"); // 固定从第1页开始
-                    args.add("10"); // 固定到第10页结束
-                    
-                    log.info("开始执行爬虫，页码范围：1-10");
-                    String result = executePythonScript("getregiondata.py", args);
-                    log.info("爬虫执行完成，结果：{}", result);
-                    
-                    // 短暂休眠，避免过于频繁的请求
-                    Thread.sleep(5000);
-                } catch (InterruptedException e) {
-                    log.error("爬虫线程被中断：{}", e.getMessage(), e);
-                    Thread.currentThread().interrupt();
-                    break;
-                } catch (Exception e) {
-                    log.error("执行爬虫失败：{}", e.getMessage(), e);
-                    // 遇到异常后短暂休眠，避免无限循环报错
-                    try {
-                        Thread.sleep(10000);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        break;
-                    }
-                }
+            try {
+                List<String> args = new ArrayList<>();
+                args.add(regionId);
+                args.add(startPage);
+                args.add(endPage);
+
+                log.info("开始执行爬虫，页码范围：{}-{}", startPage, endPage);
+                String result = executePythonScript("getregiondata3.py", args);
+                log.info("爬虫执行完成，结果：{}", result);
+            } catch (Exception e) {
+                log.error("执行爬虫失败：{}", e.getMessage(), e);
+            } finally {
+                // 清除线程引用
+                crawlerThread = null;
+                // 标记爬虫执行完成
+                isCrawlerRunning = false;
+                log.info("设置爬虫状态为停止");
             }
-            
-            log.info("爬虫执行时间已到，结束循环爬取");
-            // 清除线程引用
-            crawlerThread = null;
-            // 标记爬虫执行完成
-            isCrawlerRunning = false;
-            log.info("设置爬虫状态为停止");
-        });
+        }, crawlExecutor);
         
         // 返回一个提示信息，实际结果会在后台执行
-        return "爬取任务已启动，请等待执行完成。\n分区ID：" + zoneID + "，页码范围：1-10，持续时间：" + duration + "分钟";
+        return "爬取任务已启动，请等待执行完成。\n分区ID：" + regionId + "，页码范围：" + startPage + "-" + endPage;
     }
 
     @Override
