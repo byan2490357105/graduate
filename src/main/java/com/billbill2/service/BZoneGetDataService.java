@@ -21,4 +21,11 @@ public interface BZoneGetDataService extends IService<NewRegionData> {
      * @return {bv号,aid}列表
      */
     List<Map<String, String>> getBZoneAllAidAndBvNum(Integer pidV2);
+
+    /**
+     * 根据分区ID（pid_v2），获取该分区的所有bv号
+     * @param pidV2 分区ID
+     * @return bv号列表
+     */
+    List<String> getBZoneAllBvNumByPidV2(Integer pidV2);
 }

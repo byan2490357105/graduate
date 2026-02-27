@@ -76,4 +76,12 @@ public interface CrawlerService {
      * @return 爬取/入库结果
      */
     String batchGetCommentByAid(List<String> args);
+
+    /**
+     * 根据bv号列表调用Python脚本获取视频数据
+     * @param bvNumList bv号列表
+     * @return 视频数据列表
+     */
+    List<Video> batchGetVideoDataByBvNum(List<String> bvNumList);
+
 }

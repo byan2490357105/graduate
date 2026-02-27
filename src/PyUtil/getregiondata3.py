@@ -8,6 +8,7 @@ SPRING_BOOT_BATCH_URL = "http://localhost:8080/api/bilibili/regiondata/batch-sav
 BATCH_SIZE = 300
 TIMEOUT = 30
 
+session = requests.Session()
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Referer": "https://www.bilibili.com/",
@@ -19,6 +20,7 @@ HEADERS = {
     "Pragma": "no-cache",
     "cookie": "buvid3=E6556CB0-91D4-A8B8-768E-B0E99A85DF0714444infoc; b_nut=1769148714; _uuid=34BABDEA-5812-F735-9B10C-F8F104103993AE15439infoc; CURRENT_FNVAL=4048; CURRENT_QUALITY=0; buvid4=68D8A95B-859B-F79F-CE84-DF1E7EFEDE2B16751-026012314-UJVXYJRvQ1PnCX3wOLCsag%3D%3D; buvid_fp=5ef30d920da9fea53175567e959f7310; rpdid=|(JYl)Rm~)m~0J'u~YmuR)~u~; bili_ticket=eyJhbGciOiJIUzI1NiIsImtpZCI6InMwMyIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NzE3NTI2MDYsImlhdCI6MTc3MTQ5MzM0NiwicGx0IjotMX0.7AxKjRchAbDorH7vNflgY8knLdlukJXsaag5zGdrDUY; bili_ticket_expires=1771752546"
 }
+session.headers.update(HEADERS)
 
 def utf8_print(*args, **kwargs):
     try:
@@ -67,7 +69,7 @@ def get_bilibili_gc_video_new(display_id, from_region,pid_v2):
             url = generate_bilibili_region_feed_url(display_id, from_region)
             HEADERS["X-Bili-Trace-ID"] = str(random.randint(10000000, 99999999))
             
-            response = requests.get(url, headers=HEADERS, timeout=10)
+            response = session.get(url, headers=HEADERS, timeout=10)
             response.raise_for_status()
             data = response.json()
 

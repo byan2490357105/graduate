@@ -320,3 +320,56 @@ function collectZoneComment() {
         collectCommentBtn.textContent = '将收集分区评论';
     });
 }
+
+// 收集分区视频数据（录入tag）
+function collectZoneVideoData() {
+    const zoneSelect = document.getElementById('zone');
+    const selectedId = zoneSelect.value;
+    const collectVideoDataBtn = document.getElementById('collectVideoDataBtn');
+    
+    // 检查是否已经有爬虫在运行
+    if (crawlerStatusIntervalId !== null) {
+        showError('爬虫正在运行中，请等待完成');
+        return;
+    }
+    
+    if (!selectedId) {
+        showError('请选择一个分区');
+        return;
+    }
+    
+    const selectedZone = biliZones.find(zone => zone.id === selectedId);
+    if (!selectedZone) {
+        showError('选择的分区无效');
+        return;
+    }
+    
+    // 禁用按钮并修改文本
+    collectVideoDataBtn.disabled = true;
+    collectVideoDataBtn.textContent = '正在收集视频数据中';
+    
+    // 显示提交的数据
+    showResult('正在提交数据...');
+    
+    // 向后端提交数据
+    fetch('/api/bilibili/video/batch-get-video-data?pidV2=' + selectedId, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        showResult('提交成功！\n' + JSON.stringify(data, null, 2));
+        // 延迟2秒后开始定时查询爬虫状态，确保爬虫已经开始执行
+        setTimeout(() => {
+            startCrawlerStatusCheck();
+        }, 2000);
+    })
+    .catch(error => {
+        showError('提交失败：' + error.message);
+        // 恢复按钮状态
+        collectVideoDataBtn.disabled = false;
+        collectVideoDataBtn.textContent = '保留分区视频参数（录入tag）';
+    });
+}

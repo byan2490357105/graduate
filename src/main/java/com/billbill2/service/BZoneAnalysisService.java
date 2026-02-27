@@ -2,6 +2,7 @@ package com.billbill2.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.billbill2.entity.NewRegionData;
+import com.billbill2.entity.Video;
 
 import java.util.List;
 import java.util.Map;

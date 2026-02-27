@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>视频标签词云</title>
+    <!-- 引入 ECharts 核心库 -->
+    <script src="https://cdn.staticfile.org/echarts/5.4.3/echarts.min.js"></script>
+    <!-- 引入 ECharts 词云扩展 -->
+    <script src="https://cdn.staticfile.org/echarts-wordcloud/2.1.0/echarts-wordcloud.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .btn-container {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        #generateBtn {
+            padding: 12px 24px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #generateBtn:hover {
+            background-color: #45a049;
+        }
+        #generateBtn:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #wordcloud {
+            width: 100%;
+            height: 600px;
+            margin-top: 20px;
+        }
+        .loading {
+            text-align: center;
+            margin: 20px 0;
+            color: #666;
+        }
+        .error {
+            text-align: center;
+            margin: 20px 0;
+            color: #ff4d4f;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>视频标签词云</h1>
+        <div class="btn-container">
+            <button id="generateBtn" onclick="generateWordCloud()">查看标签词云</button>
+        </div>
+        <div id="wordcloud"></div>
+        <div id="loading" class="loading" style="display: none;">正在生成词云，请稍候...</div>
+        <div id="error" class="error" style="display: none;"></div>
+    </div>
+
+    <script>
+        // 初始化 ECharts 实例
+        var myChart = echarts.init(document.getElementById('wordcloud'));
+        
+        // 生成词云
+        function generateWordCloud() {
+            var generateBtn = document.getElementById('generateBtn');
+            var loading = document.getElementById('loading');
+            var error = document.getElementById('error');
+            
+            // 禁用按钮，显示加载状态
+            generateBtn.disabled = true;
+            loading.style.display = 'block';
+            error.style.display = 'none';
+            
+            // 清空词云
+            myChart.clear();
+            
+            // 发送请求获取标签数据
+            fetch('/tag/getTagsStatistics?limit=100')
+                .then(response => response.json())
+                .then(data => {
+                    // 处理数据，转换为 ECharts 词云所需格式
+                    var words = [];
+                    for (var tag in data) {
+                        words.push({
+                            name: tag,
+                            value: data[tag]
+                        });
+                    }
+                    
+                    // 配置词云选项
+                    var option = {
+                        tooltip: {
+                            trigger: 'item',
+                            formatter: function(params) {
+                                return params.name + ': ' + params.value;
+                            }
+                        },
+                        series: [
+                            {
+                                type: 'wordCloud',
+                                shape: 'circle',
+                                left: 'center',
+                                top: 'center',
+                                width: '80%',
+                                height: '80%',
+                                right: null,
+                                bottom: null,
+                                sizeRange: [12, 60],
+                                rotationRange: [-45, 45],
+                                rotationStep: 45,
+                                gridSize: 8,
+                                drawOutOfBound: false,
+                                textStyle: {
+                                    fontFamily: 'sans-serif',
+                                    fontWeight: 'bold',
+                                    color: function() {
+                                        return 'rgb(' + [
+                                            Math.round(Math.random() * 160),
+                                            Math.round(Math.random() * 160),
+                                            Math.round(Math.random() * 160)
+                                        ].join(',') + ')';
+                                    }
+                                },
+                                emphasis: {
+                                    focus: 'self',
+                                    textStyle: {
+                                        shadowBlur: 10,
+                                        shadowColor: '#333'
+                                    }
+                                },
+                                data: words
+                            }
+                        ]
+                    };
+                    
+                    // 设置选项并渲染
+                    myChart.setOption(option);
+                    
+                })
+                .catch(err => {
+                    console.error('获取标签数据失败:', err);
+                    error.textContent = '获取标签数据失败，请重试';
+                    error.style.display = 'block';
+                })
+                .finally(() => {
+                    // 恢复按钮状态，隐藏加载状态
+                    generateBtn.disabled = false;
+                    loading.style.display = 'none';
+                });
+        }
+        
+        // 响应窗口大小变化
+        window.addEventListener('resize', function() {
+            myChart.resize();
+        });
+    </script>
+</body>
+</html>

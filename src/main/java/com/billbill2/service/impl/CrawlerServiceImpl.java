@@ -4,6 +4,8 @@ import com.billbill2.DTO.CommentRequestDTO;
 import com.billbill2.entity.Video;
 import com.billbill2.service.CrawlerService;
 import com.billbill2.Util.FileOperate;
+import com.billbill2.service.BZoneGetDataService;
+import com.billbill2.service.VideoService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,6 +49,12 @@ public class CrawlerServiceImpl implements CrawlerService {
     @Autowired
     @Qualifier("crawlExecutor")
     private Executor crawlExecutor;
+
+    @Autowired
+    private BZoneGetDataService bZoneGetDataService;
+
+    @Autowired
+    private VideoService videoService;
     
     /**
      * 存储运行中的Python进程，用于后续停止操作
@@ -479,4 +487,132 @@ public class CrawlerServiceImpl implements CrawlerService {
     public boolean isCrawlerRunning() {
         return isCrawlerRunning;
     }
+
+    @Override
+    public List<Video> batchGetVideoDataByBvNum(List<String> bvNumList) {
+        log.info("开始根据bv号列表调用Python脚本获取视频数据，bv号数量：{}", bvNumList.size());
+        
+        List<Video> allVideoList = new ArrayList<>();
+        
+        // 分批处理bv号，每批10个，避免Python命令行参数过长
+        int batchSize = 10;
+        int total = bvNumList.size();
+        
+        for (int i = 0; i < total; i += batchSize) {
+            int endIndex = Math.min(i + batchSize, total);
+            List<String> batchBvNumList = bvNumList.subList(i, endIndex);
+            
+            log.info("处理批次：{}-{}/{}，数量：{}", i + 1, endIndex, total, batchBvNumList.size());
+            
+            // 调用Python脚本获取视频数据
+            String result = executePythonScript("getBatchVideoDataByBvNum.py", batchBvNumList);
+            
+            // 解析Python脚本返回的JSON数据
+            try {
+                // 提取JSON部分
+                String jsonStart = "--- JSON结果开始 ---";
+                String jsonEnd = "--- JSON结果结束 ---";
+                int startIndex = result.indexOf(jsonStart);
+                int endIndexJson = result.indexOf(jsonEnd);
+                
+                if (startIndex != -1 && endIndexJson != -1) {
+                    String jsonStr = result.substring(startIndex + jsonStart.length(), endIndexJson).trim();
+                    
+                    // 解析JSON为视频数据列表
+                    List<Map<String, Object>> videoDataList = objectMapper.readValue(
+                        jsonStr, 
+                        objectMapper.getTypeFactory().constructCollectionType(List.class, Map.class)
+                    );
+                    
+                    log.info("成功解析到{}个视频数据", videoDataList.size());
+                    
+                    // 将数据转换为Video对象列表
+                    for (Map<String, Object> videoData : videoDataList) {
+                        Video video = convertToVideo(videoData);
+                        allVideoList.add(video);
+                    }
+                } else {
+                    log.error("无法从Python脚本返回结果中提取JSON数据");
+                }
+                
+            } catch (Exception e) {
+                log.error("解析Python脚本返回的数据失败", e);
+            }
+            
+            // 每处理一批数据后，手动触发垃圾回收，减少内存占用
+            if ((i + batchSize) % (batchSize * 10) == 0) {
+                System.gc();
+            }
+        }
+        
+        log.info("Python脚本调用完成，共获取{}个视频数据", allVideoList.size());
+        return allVideoList;
+    }
+
+    /**
+     * 将Map数据转换为Video对象
+     * @param videoData Map数据
+     * @return Video对象
+     */
+    private Video convertToVideo(Map<String, Object> videoData) {
+        Video video = new Video();
+        
+        // 设置视频数据
+        video.setName(filterEmoji((String) videoData.get("name")));
+        video.setBvNum((String) videoData.get("BvNum"));
+        video.setUpName(filterEmoji((String) videoData.get("upName")));
+        video.setUpId(toLong(videoData.get("upId")));
+        video.setPlayCount(toLong(videoData.get("playCount")));
+        video.setDanmakuCount(toLong(videoData.get("danmakuCount")));
+        video.setLikeCount(toLong(videoData.get("likeCount")));
+        video.setCoinCount(toLong(videoData.get("coinCount")));
+        video.setFavoriteCount(toLong(videoData.get("favoriteCount")));
+        video.setShareCount(toLong(videoData.get("shareCount")));
+        video.setDuration(toInteger(videoData.get("duration")));
+        video.setVideoDesc(filterEmoji((String) videoData.get("videoDesc")));
+        video.setTags(filterEmoji((String) videoData.get("tags")));
+        video.setCoverUrl((String) videoData.get("coverUrl"));
+        
+        return video;
+    }
+    
+    /**
+     * 过滤字符串中的emoji等特殊字符
+     */
+    private String filterEmoji(String str) {
+        if (str == null) {
+            return null;
+        }
+        // 使用正则表达式过滤emoji
+        return str.replaceAll("[\\ud800-\\udbff\\udc00-\\udfff]", "");
+    }
+
+    /**
+     * 将Object转换为Long
+     */
+    private Long toLong(Object obj) {
+        if (obj == null) return 0L;
+        if (obj instanceof Long) return (Long) obj;
+        if (obj instanceof Integer) return ((Integer) obj).longValue();
+        try {
+            return Long.parseLong(obj.toString());
+        } catch (NumberFormatException e) {
+            return 0L;
+        }
+    }
+
+    /**
+     * 将Object转换为Integer
+     */
+    private Integer toInteger(Object obj) {
+        if (obj == null) return 0;
+        if (obj instanceof Integer) return (Integer) obj;
+        if (obj instanceof Long) return ((Long) obj).intValue();
+        try {
+            return Integer.parseInt(obj.toString());
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
 }

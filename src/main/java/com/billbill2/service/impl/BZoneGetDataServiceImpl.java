@@ -63,4 +63,26 @@ public class BZoneGetDataServiceImpl extends ServiceImpl<BZoneDataMapper,NewRegi
         
         return result;
     }
+
+    @Override
+    public List<String> getBZoneAllBvNumByPidV2(Integer pidV2) {
+        // 使用LambdaQueryWrapper构建查询条件
+        LambdaQueryWrapper<NewRegionData> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(NewRegionData::getPidV2, pidV2);
+        queryWrapper.select(NewRegionData::getBvNum); // 只选择bvNum字段，减少数据传输
+        
+        // 使用selectObjs方法直接获取bvNum列表，避免加载整个对象
+        // 对于大数据量，MyBatis-Plus会自动处理分页，不会一次性加载所有数据
+        List<Object> bvNumObjects = this.listObjs(queryWrapper);
+        
+        // 将Object列表转换为String列表
+        List<String> bvNumList = new ArrayList<>();
+        for (Object obj : bvNumObjects) {
+            if (obj != null) {
+                bvNumList.add(obj.toString());
+            }
+        }
+        
+        return bvNumList;
+    }
 }

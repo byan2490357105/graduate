@@ -3,10 +3,12 @@ package com.billbill2.controller;
 import com.billbill2.Util.FileOperate;
 import com.billbill2.entity.Comment;
 import com.billbill2.entity.Video;
+import com.billbill2.service.BZoneGetDataService;
 import com.billbill2.service.CrawlerService;
 import com.billbill2.service.VideoService;
 import com.opencsv.CSVWriter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -21,18 +23,19 @@ import java.io.File;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 @Controller
 @RequestMapping("/api/bilibili/video")
 @RequiredArgsConstructor
+@Slf4j
 public class ResponsePyVideo {
     private final CrawlerService crawlerService;
+    private final BZoneGetDataService bZoneGetDataService;
+    private final VideoService videoService;
 
     @Value("${python.save-path}")
     private String defaultSavePath;
-
-    @Autowired
-    private VideoService videoService;
 
     /**
      * 支持单条/批量获取视频（兼容单个BV号和多个BV号数组）
@@ -181,6 +184,111 @@ public class ResponsePyVideo {
             }
         }
         directory.delete();
+    }
+
+    /**
+     * 批量获取分区视频数据
+     * @param pidV2 分区ID
+     * @return 操作结果
+     */
+    @PostMapping("/batch-get-video-data")
+    @ResponseBody
+    public Map<String, Object> batchGetVideoDataByPidV2(@RequestParam Integer pidV2) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            // 1. 检查分区ID
+            if (pidV2 == null) {
+                result.put("success", false);
+                result.put("message", "分区ID不能为空");
+                return result;
+            }
+            
+            // 2. 异步执行获取和保存操作
+            CompletableFuture.runAsync(() -> {
+                try {
+                    // 从NewRegionData表中获取指定分区的所有bv号
+                    List<String> bvNumList = bZoneGetDataService.getBZoneAllBvNumByPidV2(pidV2);
+                    
+                    if (bvNumList == null || bvNumList.isEmpty()) {
+                        log.warn("分区{}没有找到任何bv号", pidV2);
+                        return;
+                    }
+                    
+                    // 调用CrawlerService获取视频数据
+                    List<Video> videoList = crawlerService.batchGetVideoDataByBvNum(bvNumList);
+                    
+                    if (videoList == null || videoList.isEmpty()) {
+                        log.warn("未能获取到任何视频数据");
+                        return;
+                    }
+                    
+                    // 设置默认值：保存路径为空，文件大小为0，是否下载为0
+                    for (Video video : videoList) {
+                        video.setSavePath("");
+                        video.setFileSize(0L);
+                        video.setIsDownload(0);
+                    }
+                    
+                    // 批量保存到Video表
+                    boolean saveSuccess = videoService.batchSaveOrUpdateVideoByBvNum(videoList);
+                    
+                    if (saveSuccess) {
+                        log.info("成功获取并保存{}条视频数据", videoList.size());
+                    } else {
+                        log.error("保存视频数据失败");
+                    }
+                    
+                } catch (Exception e) {
+                    log.error("批量获取视频数据失败", e);
+                }
+            });
+            
+            result.put("success", true);
+            result.put("message", "批量获取视频数据任务已启动，请等待执行完成。\n分区ID：" + pidV2);
+            
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("message", "操作失败：" + e.getMessage());
+        }
+        return result;
+    }
+
+    /**
+     * 查询爬虫执行状态
+     * @return 爬虫状态
+     */
+    @GetMapping("/is-running")
+    @ResponseBody
+    public Map<String, Object> isCrawlerRunning() {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            boolean isRunning = crawlerService.isCrawlerRunning();
+            result.put("success", true);
+            result.put("isRunning", isRunning);
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("message", "查询失败：" + e.getMessage());
+        }
+        return result;
+    }
+
+    /**
+     * 停止当前运行的爬虫
+     * @return 操作结果
+     */
+    @PostMapping("/stop")
+    @ResponseBody
+    public Map<String, Object> stopCrawler() {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            boolean success = crawlerService.stopCrawler();
+            result.put("success", success);
+            result.put("message", success ? "爬虫已成功停止" : "爬虫停止失败");
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("message", "操作失败：" + e.getMessage());
+        }
+        return result;
     }
 
 }
