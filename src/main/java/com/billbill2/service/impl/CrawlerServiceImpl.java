@@ -4,8 +4,6 @@ import com.billbill2.DTO.CommentRequestDTO;
 import com.billbill2.entity.Video;
 import com.billbill2.service.CrawlerService;
 import com.billbill2.Util.FileOperate;
-import com.billbill2.service.BZoneGetDataService;
-import com.billbill2.service.VideoService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,12 +47,6 @@ public class CrawlerServiceImpl implements CrawlerService {
     @Autowired
     @Qualifier("crawlExecutor")
     private Executor crawlExecutor;
-
-    @Autowired
-    private BZoneGetDataService bZoneGetDataService;
-
-    @Autowired
-    private VideoService videoService;
     
     /**
      * 存储运行中的Python进程，用于后续停止操作
@@ -494,8 +486,8 @@ public class CrawlerServiceImpl implements CrawlerService {
         
         List<Video> allVideoList = new ArrayList<>();
         
-        // 分批处理bv号，每批10个，避免Python命令行参数过长
-        int batchSize = 10;
+        // 分批处理bv号，每批50个，提高处理效率
+        int batchSize = 50;
         int total = bvNumList.size();
         
         for (int i = 0; i < total; i += batchSize) {
@@ -572,6 +564,26 @@ public class CrawlerServiceImpl implements CrawlerService {
         video.setVideoDesc(filterEmoji((String) videoData.get("videoDesc")));
         video.setTags(filterEmoji((String) videoData.get("tags")));
         video.setCoverUrl((String) videoData.get("coverUrl"));
+        
+        // 设置视频发布时间
+        Object publishTimeObj = videoData.get("publishTime");
+        if (publishTimeObj != null) {
+            try {
+                // 尝试不同的时间格式转换
+                if (publishTimeObj instanceof String) {
+                    String publishTimeStr = (String) publishTimeObj;
+                    // 解析时间字符串为LocalDateTime
+                    java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+                    video.setPublishTime(java.time.LocalDateTime.parse(publishTimeStr, formatter));
+                } else if (publishTimeObj instanceof Long) {
+                    // 如果是时间戳，转换为LocalDateTime
+                    long timestamp = (Long) publishTimeObj;
+                    video.setPublishTime(java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochSecond(timestamp), java.time.ZoneId.systemDefault()));
+                }
+            } catch (Exception e) {
+                log.warn("解析发布时间失败: {}", e.getMessage());
+            }
+        }
         
         return video;
     }

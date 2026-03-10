@@ -1,27 +1,17 @@
 package com.billbill2.controller;
 
-import com.billbill2.Util.FileOperate;
-import com.billbill2.entity.Comment;
 import com.billbill2.entity.Video;
 import com.billbill2.service.BZoneGetDataService;
 import com.billbill2.service.CrawlerService;
 import com.billbill2.service.VideoService;
-import com.opencsv.CSVWriter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.ByteArrayOutputStream;
+
 import java.io.File;
-import java.io.OutputStreamWriter;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
@@ -123,20 +113,6 @@ public class ResponsePyVideo {
             resultMap.put("detail", detailResults);
         }
         return resultMap;
-    }
-
-
-    /**
-     * Map转Video实体（适配JSON自动转换）
-     */
-    private Video mapToVideo(Map<String, Object> videoMap) {
-        Video video = new Video();
-        video.setBvNum(videoMap.get("bvNum") != null ? videoMap.get("bvNum").toString() : null);
-        video.setName(videoMap.get("name") != null ? videoMap.get("name").toString() : null);
-        video.setFileSize(videoMap.get("fileSize") != null ? Long.parseLong(videoMap.get("fileSize").toString()) : 0L);
-        video.setIsDownload(videoMap.get("isDownload") != null ? Integer.parseInt(videoMap.get("isDownload").toString()) : 0);
-        // 补充其他Video字段的映射...
-        return video;
     }
 
     // 清空视频数据库接口（保持不变）

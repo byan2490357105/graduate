@@ -6,7 +6,6 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.billbill2.dao.BZoneDataMapper;
 import com.billbill2.entity.NewRegionData;
-import com.billbill2.entity.Video;
 import com.billbill2.service.BZoneAnalysisService;
 import org.springframework.stereotype.Service;
 

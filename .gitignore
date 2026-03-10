@@ -20,5 +20,29 @@ logs/
 .DS_Store
 Thumbs.db
 
-# Maven 编译生成目录
-target/
+# ============ Vue项目忽略规则 ============
+# 依赖目录
+graduate_vue/node_modules/
+
+# 构建输出
+graduate_vue/dist/
+graduate_vue/dist-ssr/
+
+# 日志文件
+graduate_vue/logs/
+graduate_vue/npm-debug.log*
+graduate_vue/yarn-debug.log*
+graduate_vue/yarn-error.log*
+graduate_vue/pnpm-debug.log*
+
+# 环境变量文件
+graduate_vue/.env
+graduate_vue/.env.local
+graduate_vue/.env.*.local
+
+# 临时文件
+graduate_vue/*.tmp
+graduate_vue/*.temp
+
+# 测试覆盖率
+graduate_vue/coverage/

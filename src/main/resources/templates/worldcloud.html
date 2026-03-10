@@ -3,10 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>视频标签词云</title>
-    <!-- 引入 ECharts 核心库 -->
+    <title>词云展示</title>
     <script src="https://cdn.staticfile.org/echarts/5.4.3/echarts.min.js"></script>
-    <!-- 引入 ECharts 词云扩展 -->
     <script src="https://cdn.staticfile.org/echarts-wordcloud/2.1.0/echarts-wordcloud.min.js"></script>
     <style>
         body {
@@ -31,20 +29,37 @@
             text-align: center;
             margin-bottom: 30px;
         }
-        #generateBtn {
+        .btn-container button {
             padding: 12px 24px;
             font-size: 16px;
-            background-color: #4CAF50;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
             transition: background-color 0.3s;
+            margin: 0 10px;
         }
-        #generateBtn:hover {
+        #tagBtn {
+            background-color: #4CAF50;
+        }
+        #tagBtn:hover {
             background-color: #45a049;
         }
-        #generateBtn:disabled {
+        #tagBtn.active {
+            background-color: #388E3C;
+            box-shadow: 0 0 5px rgba(0,0,0,0.3);
+        }
+        #commentBtn {
+            background-color: #1890ff;
+        }
+        #commentBtn:hover {
+            background-color: #40a9ff;
+        }
+        #commentBtn.active {
+            background-color: #096dd9;
+            box-shadow: 0 0 5px rgba(0,0,0,0.3);
+        }
+        .btn-container button:disabled {
             background-color: #cccccc;
             cursor: not-allowed;
         }
@@ -63,56 +78,97 @@
             margin: 20px 0;
             color: #ff4d4f;
         }
+        .tip {
+            text-align: center;
+            color: #999;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .current-type {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>视频标签词云</h1>
+        <h1>词云展示</h1>
         <div class="btn-container">
-            <button id="generateBtn" onclick="generateWordCloud()">查看标签词云</button>
+            <button id="tagBtn" onclick="generateWordCloud('tag')">查看标签词云</button>
+            <button id="commentBtn" onclick="generateWordCloud('comment')">查看评论词云</button>
         </div>
+        <p class="tip">提示：评论数据量较大时，生成词云可能需要较长时间，请耐心等待</p>
+        <div id="currentType" class="current-type" style="display: none;"></div>
         <div id="wordcloud"></div>
         <div id="loading" class="loading" style="display: none;">正在生成词云，请稍候...</div>
         <div id="error" class="error" style="display: none;"></div>
     </div>
 
     <script>
-        // 初始化 ECharts 实例
         var myChart = echarts.init(document.getElementById('wordcloud'));
+        var currentType = null;
         
-        // 生成词云
-        function generateWordCloud() {
-            var generateBtn = document.getElementById('generateBtn');
+        function generateWordCloud(type) {
+            var tagBtn = document.getElementById('tagBtn');
+            var commentBtn = document.getElementById('commentBtn');
             var loading = document.getElementById('loading');
             var error = document.getElementById('error');
+            var currentTypeDiv = document.getElementById('currentType');
             
-            // 禁用按钮，显示加载状态
-            generateBtn.disabled = true;
+            tagBtn.disabled = true;
+            commentBtn.disabled = true;
             loading.style.display = 'block';
             error.style.display = 'none';
+            currentTypeDiv.style.display = 'none';
             
-            // 清空词云
             myChart.clear();
             
-            // 发送请求获取标签数据
-            fetch('/tag/getTagsStatistics?limit=100')
+            var url, title;
+            if (type === 'tag') {
+                url = '/tag/getTagsStatistics?limit=100';
+                title = '当前显示：视频标签词云';
+            } else {
+                url = '/comment/getCommentWordStatistics?limit=150';
+                title = '当前显示：评论热词词云';
+            }
+            
+            fetch(url)
                 .then(response => response.json())
                 .then(data => {
-                    // 处理数据，转换为 ECharts 词云所需格式
                     var words = [];
-                    for (var tag in data) {
+                    for (var key in data) {
                         words.push({
-                            name: tag,
-                            value: data[tag]
+                            name: key,
+                            value: data[key]
                         });
                     }
                     
-                    // 配置词云选项
+                    if (words.length === 0) {
+                        error.textContent = '暂无数据';
+                        error.style.display = 'block';
+                        return;
+                    }
+                    
+                    var colors = type === 'tag' 
+                        ? ['#4CAF50', '#8BC34A', '#CDDC39', '#FFEB3B', '#FFC107', '#FF9800', '#FF5722']
+                        : ['#1890ff', '#52c41a', '#faad14', '#f5222d', '#722ed1', '#13c2c2', '#eb2f96'];
+                    
                     var option = {
+                        title: {
+                            text: type === 'tag' ? '视频标签词云' : '评论热词词云',
+                            left: 'center',
+                            top: 10,
+                            textStyle: {
+                                fontSize: 18,
+                                color: '#333'
+                            }
+                        },
                         tooltip: {
                             trigger: 'item',
                             formatter: function(params) {
-                                return params.name + ': ' + params.value;
+                                return params.name + ': ' + params.value + (type === 'comment' ? '次' : '');
                             }
                         },
                         series: [
@@ -125,7 +181,7 @@
                                 height: '80%',
                                 right: null,
                                 bottom: null,
-                                sizeRange: [12, 60],
+                                sizeRange: [14, 68],
                                 rotationRange: [-45, 45],
                                 rotationStep: 45,
                                 gridSize: 8,
@@ -134,11 +190,7 @@
                                     fontFamily: 'sans-serif',
                                     fontWeight: 'bold',
                                     color: function() {
-                                        return 'rgb(' + [
-                                            Math.round(Math.random() * 160),
-                                            Math.round(Math.random() * 160),
-                                            Math.round(Math.random() * 160)
-                                        ].join(',') + ')';
+                                        return colors[Math.floor(Math.random() * colors.length)];
                                     }
                                 },
                                 emphasis: {
@@ -153,23 +205,40 @@
                         ]
                     };
                     
-                    // 设置选项并渲染
                     myChart.setOption(option);
                     
+                    currentType = type;
+                    currentTypeDiv.textContent = title;
+                    currentTypeDiv.style.display = 'block';
+                    
+                    updateButtonStyles(type);
                 })
                 .catch(err => {
-                    console.error('获取标签数据失败:', err);
-                    error.textContent = '获取标签数据失败，请重试';
+                    console.error('获取数据失败:', err);
+                    error.textContent = '获取数据失败，请重试';
                     error.style.display = 'block';
                 })
                 .finally(() => {
-                    // 恢复按钮状态，隐藏加载状态
-                    generateBtn.disabled = false;
+                    tagBtn.disabled = false;
+                    commentBtn.disabled = false;
                     loading.style.display = 'none';
                 });
         }
         
-        // 响应窗口大小变化
+        function updateButtonStyles(activeType) {
+            var tagBtn = document.getElementById('tagBtn');
+            var commentBtn = document.getElementById('commentBtn');
+            
+            tagBtn.classList.remove('active');
+            commentBtn.classList.remove('active');
+            
+            if (activeType === 'tag') {
+                tagBtn.classList.add('active');
+            } else if (activeType === 'comment') {
+                commentBtn.classList.add('active');
+            }
+        }
+        
         window.addEventListener('resize', function() {
             myChart.resize();
         });
