@@ -20,6 +20,9 @@
       <button id="submitBtn" :disabled="loading" @click="submitVideo">
         {{ loading ? '下载文件中...' : '提交到后端' }}
       </button>
+      <button v-if="showDownloadBtn" id="downloadBtn" :disabled="loading || bvNums.length === 0" @click="batchDownload">
+        批量下载到本地
+      </button>
       <button id="resetBtn" class="reset-btn" @click="resetInput">重置输入</button>
       <button id="clearBtn" class="clear-btn" @click="clearDatabase">清空视频数据库</button>
     </div>
@@ -72,13 +75,14 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { biliApi } from '@/api'
 
 const bvInput = ref('')
 const loading = ref(false)
 const status = ref('initial')
 const result = ref({})
+const showDownloadBtn = ref(false)
 const errorTitle = ref('')
 const errorStatus = ref('')
 const errorMessage = ref('')
@@ -100,6 +104,7 @@ const submitVideo = async () => {
   
   loading.value = true
   status.value = 'loading'
+  showDownloadBtn.value = false // 开始下载时隐藏下载按钮
   
   try {
     const requestData = {
@@ -112,11 +117,13 @@ const submitVideo = async () => {
     if (data.code === 200) {
       status.value = 'success'
       result.value = data
+      showDownloadBtn.value = true // 下载完成后显示下载按钮
     } else {
       status.value = 'error'
       errorTitle.value = '处理失败'
       errorStatus.value = data.code
       errorMessage.value = data.msg
+      showDownloadBtn.value = false
     }
   } catch (error) {
     status.value = 'error'
@@ -132,6 +139,7 @@ const resetInput = () => {
   bvInput.value = ''
   status.value = 'initial'
   result.value = {}
+  showDownloadBtn.value = false
 }
 
 const clearDatabase = async () => {
@@ -166,6 +174,44 @@ const clearDatabase = async () => {
     loading.value = false
   }
 }
+
+// 监听输入框变化，隐藏下载按钮
+watch(() => bvInput.value, () => {
+  showDownloadBtn.value = false
+})
+
+const batchDownload = async () => {
+  if (bvNums.value.length === 0) {
+    alert('请输入BV号')
+    return
+  }
+  
+  try {
+    // 构建下载URL
+    const bvNumStr = bvNums.value.join(',')
+    const url = `/api/bilibili/video/batch-download?bvNums=${bvNumStr}`
+    
+    // 创建下载链接
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'videos.zip'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    
+    // 显示成功提示
+    status.value = 'success'
+    result.value = {
+      code: 200,
+      msg: `开始下载 ${bvNums.value.length} 个视频，请稍候...`
+    }
+  } catch (error) {
+    status.value = 'error'
+    errorTitle.value = '下载失败'
+    errorStatus.value = '网络错误'
+    errorMessage.value = error.message
+  }
+}
 </script>
 
 <style scoped>
@@ -191,6 +237,19 @@ const clearDatabase = async () => {
 
 .clear-btn:hover {
   background-color: #ff7875;
+}
+
+#downloadBtn {
+  background-color: #13c2c2;
+}
+
+#downloadBtn:hover {
+  background-color: #36cfc9;
+}
+
+#downloadBtn:disabled {
+  background-color: #d9d9d9;
+  cursor: not-allowed;
 }
 
 .status-area {

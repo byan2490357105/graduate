@@ -55,6 +55,42 @@ export const biliApi = {
   
   getCommentWordStatistics(limit = 150) {
     return api.get(`/comment/getCommentWordStatistics?limit=${limit}`)
+  },
+  
+  getTopVideos(data) {
+    return api.post('/api/bilibili/regiondata/query-top-videos', data)
+  },
+  
+  getVideoQuality(data) {
+    return api.post('/api/bilibili/regiondata/query-video-quality', data)
+  },
+  
+  getHighLikeRate(data) {
+    return api.post('/api/bilibili/regiondata/query-high-like-rate', data)
+  },
+  
+  getHighDanmakuRate(data) {
+    return api.post('/api/bilibili/regiondata/query-high-danmaku-rate', data)
+  },
+  
+  getPublishTimeDistribution(data) {
+    return api.post('/api/bilibili/regiondata/query-publish-time-distribution', data)
+  },
+  
+  getVideoDistribution(data) {
+    return api.post('/api/bilibili/regiondata/query-video-distribution', data)
+  },
+
+  crawlUpVideo(data) {
+    return api.post('/api/bilibili/upvideo/crawl', data)
+  },
+
+  getUpVideoList(params) {
+    return api.get('/api/bilibili/upvideo/list', { params })
+  },
+
+  checkBvExists(bvNum) {
+    return api.get('/api/bilibili/upvideo/exists', { params: { bvNum } })
   }
 }
 

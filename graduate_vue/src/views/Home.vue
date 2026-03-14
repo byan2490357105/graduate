@@ -7,6 +7,8 @@
       <router-link to="/analysis" class="nav-link">B站分区数据分析</router-link>
       <router-link to="/statistics" class="nav-link">B站数据分区统计</router-link>
       <router-link to="/wordcloud" class="nav-link">B站数据词云展示</router-link>
+      <router-link to="/video-statistics" class="nav-link">B站视频数据统计</router-link>
+      <router-link to="/up-video-crawler" class="nav-link">UP主视频信息获取</router-link>
     </div>
   </div>
 </template>

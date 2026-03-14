@@ -11,7 +11,9 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
 
+import javax.servlet.http.HttpServletResponse;
 import java.io.File;
+import java.io.OutputStream;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
@@ -200,9 +202,11 @@ public class ResponsePyVideo {
                     
                     // 设置默认值：保存路径为空，文件大小为0，是否下载为0
                     for (Video video : videoList) {
-                        video.setSavePath("");
-                        video.setFileSize(0L);
+                        // 设置默认值：是否下载为0，文件大小为0，保存路径为空
                         video.setIsDownload(0);
+                        video.setFileSize(0L);
+                        video.setSavePath("");
+                        video.setCreateTime(new Date());
                     }
                     
                     // 批量保存到Video表
@@ -265,6 +269,55 @@ public class ResponsePyVideo {
             result.put("message", "操作失败：" + e.getMessage());
         }
         return result;
+    }
+
+    /**
+     * 批量下载视频并打包为ZIP
+     * @param bvNums BV号列表
+     * @param response 响应对象
+     */
+    @GetMapping("/batch-download")
+    public void batchDownloadVideos(@RequestParam List<String> bvNums, HttpServletResponse response) {
+        log.info("开始批量下载视频，BV号数量：{}", bvNums.size());
+        
+        try {
+            // 生成zip文件名：第一个BV号 + 日期
+            String firstBvNum = bvNums.isEmpty() ? "videos" : bvNums.get(0);
+            String dateStr = new java.text.SimpleDateFormat("yyyyMMdd").format(new Date());
+            String fileName = firstBvNum + "_" + dateStr + ".zip";
+            
+            // 设置响应头
+            response.setContentType("application/zip");
+            response.setHeader("Content-Disposition", "attachment; filename=" + java.net.URLEncoder.encode(fileName, "UTF-8"));
+            response.setHeader("Accept-Ranges", "bytes");
+            
+            // 打包视频文件并输出到响应流
+            boolean success = videoService.packageVideosToZip(bvNums, response.getOutputStream());
+            
+            if (!success) {
+                // 如果打包失败，设置错误状态码
+                response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+                // 使用同一个输出流写入错误信息
+                try (OutputStream os = response.getOutputStream()) {
+                    os.write("打包视频文件失败，可能没有可下载的视频".getBytes("UTF-8"));
+                }
+            }
+            
+        } catch (Exception e) {
+            log.error("批量下载视频失败", e);
+            // 确保响应未提交
+            if (!response.isCommitted()) {
+                try {
+                    response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+                    response.setContentType("text/plain; charset=UTF-8");
+                    try (OutputStream os = response.getOutputStream()) {
+                        os.write(("下载失败：" + e.getMessage()).getBytes("UTF-8"));
+                    }
+                } catch (Exception ex) {
+                    log.error("设置响应失败", ex);
+                }
+            }
+        }
     }
 
 }

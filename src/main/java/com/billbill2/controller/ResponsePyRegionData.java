@@ -252,4 +252,219 @@ public class ResponsePyRegionData {
         }
         return ResponseEntity.ok(resultMap);
     }
+    
+    @PostMapping("/query-top-videos")
+    public ResponseEntity<Map<String, Object>> queryTopVideos(@RequestBody Map<String, Object> request) {
+        // 新建 HashMap 存储返回结果
+        Map<String, Object> resultMap = new HashMap<>();
+        try {
+            // 获取请求参数
+            Integer pidV2 = (Integer) request.get("pidV2");
+            String sortField = (String) request.get("sortField");
+            Integer limit = (Integer) request.get("limit");
+            
+            if (pidV2 == null || sortField == null || sortField.isEmpty()) {
+                resultMap.put("code", 400);
+                resultMap.put("msg", "参数错误：pidV2和sortField不能为空");
+                resultMap.put("data", null);
+                return ResponseEntity.ok(resultMap);
+            }
+            
+            if (limit == null || limit <= 0) {
+                limit = 10;
+            }
+            
+            // 查询TOP N视频
+            List<NewRegionData> topVideos = bZoneAnalysisService.getZoneTopVideos(pidV2, sortField, limit);
+            
+            // 返回成功结果
+            resultMap.put("code", 200);
+            resultMap.put("msg", "查询成功");
+            resultMap.put("data", topVideos);
+
+        } catch (Exception e) {
+            // 异常返回
+            resultMap.put("code", 500);
+            resultMap.put("msg", "查询失败：" + e.getMessage());
+            resultMap.put("data", null);
+        }
+        return ResponseEntity.ok(resultMap);
+    }
+    
+    @PostMapping("/query-video-quality")
+    public ResponseEntity<Map<String, Object>> queryVideoQuality(@RequestBody Map<String, Object> request) {
+        // 新建 HashMap 存储返回结果
+        Map<String, Object> resultMap = new HashMap<>();
+        try {
+            // 获取请求参数
+            Integer pidV2 = (Integer) request.get("pidV2");
+            Integer limit = (Integer) request.get("limit");
+            
+            if (pidV2 == null) {
+                resultMap.put("code", 400);
+                resultMap.put("msg", "参数错误：pidV2不能为空");
+                resultMap.put("data", null);
+                return ResponseEntity.ok(resultMap);
+            }
+            
+            if (limit == null || limit <= 0) {
+                limit = 10;
+            }
+            
+            // 查询视频质量评分
+            List<Map<String, Object>> qualityScoreList = bZoneAnalysisService.getZoneVideoQualityScore(pidV2, limit);
+            
+            // 返回成功结果
+            resultMap.put("code", 200);
+            resultMap.put("msg", "查询成功");
+            resultMap.put("data", qualityScoreList);
+
+        } catch (Exception e) {
+            // 异常返回
+            resultMap.put("code", 500);
+            resultMap.put("msg", "查询失败：" + e.getMessage());
+            resultMap.put("data", null);
+        }
+        return ResponseEntity.ok(resultMap);
+    }
+    
+    @PostMapping("/query-high-like-rate")
+    public ResponseEntity<Map<String, Object>> queryHighLikeRate(@RequestBody Map<String, Object> request) {
+        // 新建 HashMap 存储返回结果
+        Map<String, Object> resultMap = new HashMap<>();
+        try {
+            // 获取请求参数
+            Integer pidV2 = (Integer) request.get("pidV2");
+            Integer limit = (Integer) request.get("limit");
+            
+            if (pidV2 == null) {
+                resultMap.put("code", 400);
+                resultMap.put("msg", "参数错误：pidV2不能为空");
+                resultMap.put("data", null);
+                return ResponseEntity.ok(resultMap);
+            }
+            
+            if (limit == null || limit <= 0) {
+                limit = 10;
+            }
+            
+            // 查询点赞率高的视频
+            List<Map<String, Object>> highLikeRateList = bZoneAnalysisService.getZoneHighLikeRateVideos(pidV2, limit);
+            
+            // 返回成功结果
+            resultMap.put("code", 200);
+            resultMap.put("msg", "查询成功");
+            resultMap.put("data", highLikeRateList);
+
+        } catch (Exception e) {
+            // 异常返回
+            resultMap.put("code", 500);
+            resultMap.put("msg", "查询失败：" + e.getMessage());
+            resultMap.put("data", null);
+        }
+        return ResponseEntity.ok(resultMap);
+    }
+    
+    @PostMapping("/query-high-danmaku-rate")
+    public ResponseEntity<Map<String, Object>> queryHighDanmakuRate(@RequestBody Map<String, Object> request) {
+        // 新建 HashMap 存储返回结果
+        Map<String, Object> resultMap = new HashMap<>();
+        try {
+            // 获取请求参数
+            Integer pidV2 = (Integer) request.get("pidV2");
+            Integer limit = (Integer) request.get("limit");
+            
+            if (pidV2 == null) {
+                resultMap.put("code", 400);
+                resultMap.put("msg", "参数错误：pidV2不能为空");
+                resultMap.put("data", null);
+                return ResponseEntity.ok(resultMap);
+            }
+            
+            if (limit == null || limit <= 0) {
+                limit = 10;
+            }
+            
+            // 查询弹幕活跃度高的视频
+            List<Map<String, Object>> highDanmakuRateList = bZoneAnalysisService.getZoneHighDanmakuRateVideos(pidV2, limit);
+            
+            // 返回成功结果
+            resultMap.put("code", 200);
+            resultMap.put("msg", "查询成功");
+            resultMap.put("data", highDanmakuRateList);
+
+        } catch (Exception e) {
+            // 异常返回
+            resultMap.put("code", 500);
+            resultMap.put("msg", "查询失败：" + e.getMessage());
+            resultMap.put("data", null);
+        }
+        return ResponseEntity.ok(resultMap);
+    }
+    
+    @PostMapping("/query-publish-time-distribution")
+    public ResponseEntity<Map<String, Object>> queryPublishTimeDistribution(@RequestBody Map<String, Object> request) {
+        // 新建 HashMap 存储返回结果
+        Map<String, Object> resultMap = new HashMap<>();
+        try {
+            // 获取请求参数
+            List<Integer> pidV2List = (List<Integer>) request.get("pidV2List");
+            
+            if (pidV2List == null || pidV2List.isEmpty()) {
+                resultMap.put("code", 400);
+                resultMap.put("msg", "参数错误：pidV2List不能为空");
+                resultMap.put("data", null);
+                return ResponseEntity.ok(resultMap);
+            }
+            
+            // 查询发布时间分布
+            List<Map<String, Object>> distributionList = bZoneAnalysisService.getAllZonesPublishTimeDistribution(pidV2List);
+            
+            // 返回成功结果
+            resultMap.put("code", 200);
+            resultMap.put("msg", "查询成功");
+            resultMap.put("data", distributionList);
+
+        } catch (Exception e) {
+            // 异常返回
+            resultMap.put("code", 500);
+            resultMap.put("msg", "查询失败：" + e.getMessage());
+            resultMap.put("data", null);
+        }
+        return ResponseEntity.ok(resultMap);
+    }
+    
+    @PostMapping("/query-video-distribution")
+    public ResponseEntity<Map<String, Object>> queryVideoDistribution(@RequestBody Map<String, Object> request) {
+        // 新建 HashMap 存储返回结果
+        Map<String, Object> resultMap = new HashMap<>();
+        try {
+            // 获取请求参数
+            Integer pidV2 = (Integer) request.get("pidV2");
+            String metric = (String) request.get("metric");
+            Integer interval = (Integer) request.get("interval");
+            
+            if (pidV2 == null || metric == null || interval == null) {
+                resultMap.put("code", 400);
+                resultMap.put("msg", "参数错误：pidV2、metric和interval不能为空");
+                resultMap.put("data", null);
+                return ResponseEntity.ok(resultMap);
+            }
+            
+            // 查询视频分布
+            Map<String, Integer> distribution = bZoneAnalysisService.getVideoDistribution(pidV2, metric, interval);
+            
+            // 返回成功结果
+            resultMap.put("code", 200);
+            resultMap.put("msg", "查询成功");
+            resultMap.put("data", distribution);
+
+        } catch (Exception e) {
+            // 异常返回
+            resultMap.put("code", 500);
+            resultMap.put("msg", "查询失败：" + e.getMessage());
+            resultMap.put("data", null);
+        }
+        return ResponseEntity.ok(resultMap);
+    }
 }

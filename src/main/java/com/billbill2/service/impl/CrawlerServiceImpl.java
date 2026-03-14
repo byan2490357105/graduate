@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -484,61 +485,75 @@ public class CrawlerServiceImpl implements CrawlerService {
     public List<Video> batchGetVideoDataByBvNum(List<String> bvNumList) {
         log.info("开始根据bv号列表调用Python脚本获取视频数据，bv号数量：{}", bvNumList.size());
         
+        // 标记爬虫正在执行
+        isCrawlerRunning = true;
+        log.info("设置爬虫状态为运行中");
+        
+        // 保存当前线程引用
+        crawlerThread = Thread.currentThread();
+        
         List<Video> allVideoList = new ArrayList<>();
         
-        // 分批处理bv号，每批50个，提高处理效率
-        int batchSize = 50;
-        int total = bvNumList.size();
-        
-        for (int i = 0; i < total; i += batchSize) {
-            int endIndex = Math.min(i + batchSize, total);
-            List<String> batchBvNumList = bvNumList.subList(i, endIndex);
+        try {
+            // 分批处理bv号，每批50个，提高处理效率
+            int batchSize = 50;
+            int total = bvNumList.size();
             
-            log.info("处理批次：{}-{}/{}，数量：{}", i + 1, endIndex, total, batchBvNumList.size());
-            
-            // 调用Python脚本获取视频数据
-            String result = executePythonScript("getBatchVideoDataByBvNum.py", batchBvNumList);
-            
-            // 解析Python脚本返回的JSON数据
-            try {
-                // 提取JSON部分
-                String jsonStart = "--- JSON结果开始 ---";
-                String jsonEnd = "--- JSON结果结束 ---";
-                int startIndex = result.indexOf(jsonStart);
-                int endIndexJson = result.indexOf(jsonEnd);
+            for (int i = 0; i < total; i += batchSize) {
+                int endIndex = Math.min(i + batchSize, total);
+                List<String> batchBvNumList = bvNumList.subList(i, endIndex);
                 
-                if (startIndex != -1 && endIndexJson != -1) {
-                    String jsonStr = result.substring(startIndex + jsonStart.length(), endIndexJson).trim();
+                log.info("处理批次：{}-{}/{}}，数量：{}", i + 1, endIndex, total, batchBvNumList.size());
+                
+                // 调用Python脚本获取视频数据
+                String result = executePythonScript("getBatchVideoDataByBvNum.py", batchBvNumList);
+                
+                // 解析Python脚本返回的JSON数据
+                try {
+                    // 提取JSON部分
+                    String jsonStart = "--- JSON结果开始 ---";
+                    String jsonEnd = "--- JSON结果结束 ---";
+                    int startIndex = result.indexOf(jsonStart);
+                    int endIndexJson = result.indexOf(jsonEnd);
                     
-                    // 解析JSON为视频数据列表
-                    List<Map<String, Object>> videoDataList = objectMapper.readValue(
-                        jsonStr, 
-                        objectMapper.getTypeFactory().constructCollectionType(List.class, Map.class)
-                    );
-                    
-                    log.info("成功解析到{}个视频数据", videoDataList.size());
-                    
-                    // 将数据转换为Video对象列表
-                    for (Map<String, Object> videoData : videoDataList) {
-                        Video video = convertToVideo(videoData);
-                        allVideoList.add(video);
+                    if (startIndex != -1 && endIndexJson != -1) {
+                        String jsonStr = result.substring(startIndex + jsonStart.length(), endIndexJson).trim();
+                        
+                        // 解析JSON为视频数据列表
+                        List<Map<String, Object>> videoDataList = objectMapper.readValue(
+                            jsonStr, 
+                            objectMapper.getTypeFactory().constructCollectionType(List.class, Map.class)
+                        );
+                        
+                        log.info("成功解析到{}个视频数据", videoDataList.size());
+                        
+                        // 将数据转换为Video对象列表
+                        for (Map<String, Object> videoData : videoDataList) {
+                            Video video = convertToVideo(videoData);
+                            allVideoList.add(video);
+                        }
+                    } else {
+                        log.error("无法从Python脚本返回结果中提取JSON数据");
                     }
-                } else {
-                    log.error("无法从Python脚本返回结果中提取JSON数据");
+                } catch (Exception e) {
+                    log.error("解析Python脚本返回的数据失败", e);
                 }
                 
-            } catch (Exception e) {
-                log.error("解析Python脚本返回的数据失败", e);
+                // 每处理一批数据后，手动触发垃圾回收，减少内存占用
+                if ((i + batchSize) % (batchSize * 10) == 0) {
+                    System.gc();
+                }
             }
             
-            // 每处理一批数据后，手动触发垃圾回收，减少内存占用
-            if ((i + batchSize) % (batchSize * 10) == 0) {
-                System.gc();
-            }
+            log.info("Python脚本调用完成，共获取{}个视频数据", allVideoList.size());
+            return allVideoList;
+        } finally {
+            // 清除线程引用
+            crawlerThread = null;
+            // 标记爬虫执行完成
+            isCrawlerRunning = false;
+            log.info("设置爬虫状态为停止");
         }
-        
-        log.info("Python脚本调用完成，共获取{}个视频数据", allVideoList.size());
-        return allVideoList;
     }
 
     /**
@@ -625,6 +640,177 @@ public class CrawlerServiceImpl implements CrawlerService {
         } catch (NumberFormatException e) {
             return 0;
         }
+    }
+
+    @Override
+    public Map<String, Object> crawlUpVideoData(Long mid) {
+        Map<String, Object> result = new HashMap<>();
+        
+        log.info("开始爬取UP主[{}]的视频数据", mid);
+        
+        // 标记爬虫正在执行
+        isCrawlerRunning = true;
+        log.info("设置爬虫状态为运行中");
+        
+        // 保存当前线程引用
+        crawlerThread = Thread.currentThread();
+        
+        try {
+            int totalSuccess = 0;
+            int totalDuplicate = 0;
+            int totalPages = 0;
+            boolean shouldStop = false;
+            
+            // 先爬取第1页获取总页数
+            log.info("开始爬取第1页，获取总页数");
+            List<String> firstPageArgs = new ArrayList<>();
+            firstPageArgs.add(String.valueOf(mid));
+            firstPageArgs.add("1");
+            
+            String firstPageOutput = executePythonScript("getUpVideoData.py", firstPageArgs);
+            log.info("第1页爬取完成，结果：{}", firstPageOutput);
+            
+            // 解析第1页结果，获取总页数和成功数
+            int firstPageSuccess = 0;
+            int firstPageDuplicate = 0;
+            
+            // 解析第1页结果，获取总页数和成功数
+            if (firstPageOutput.contains("TOTAL_PAGES:")) {
+                String[] lines = firstPageOutput.split("\n");
+                for (String line : lines) {
+                    if (line.contains("TOTAL_PAGES:")) {
+                        String numStr = line.substring(line.indexOf("TOTAL_PAGES:") + 12).trim();
+                        try {
+                            totalPages = Integer.parseInt(numStr);
+                            log.info("解析总页数成功：{}", totalPages);
+                        } catch (NumberFormatException e) {
+                            log.warn("解析总页数失败：{}", e.getMessage());
+                            totalPages = 1;
+                        }
+                    } else if (line.contains("成功数：")) {
+                        String numStr = line.substring(line.indexOf("成功数：") + 4).trim();
+                        try {
+                            firstPageSuccess = Integer.parseInt(numStr);
+                        } catch (NumberFormatException e) {
+                            log.warn("解析成功数失败：{}", e.getMessage());
+                        }
+                    } else if (line.contains("重复数：")) {
+                        String numStr = line.substring(line.indexOf("重复数：") + 4).trim();
+                        try {
+                            firstPageDuplicate = Integer.parseInt(numStr);
+                        } catch (NumberFormatException e) {
+                            log.warn("解析重复数失败：{}", e.getMessage());
+                        }
+                    }
+                }
+            } else {
+                // 尝试解析旧格式
+                if (firstPageOutput.contains("总页数：")) {
+                    String[] lines = firstPageOutput.split("\n");
+                    for (String line : lines) {
+                        if (line.contains("总页数：")) {
+                            String numStr = line.substring(line.indexOf("总页数：") + 5).trim();
+                            try {
+                                totalPages = Integer.parseInt(numStr);
+                                log.info("解析总页数成功（旧格式）：{}", totalPages);
+                            } catch (NumberFormatException e) {
+                                log.warn("解析总页数失败（旧格式）：{}", e.getMessage());
+                                totalPages = 1;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            totalSuccess += firstPageSuccess;
+            totalDuplicate += firstPageDuplicate;
+            
+            // 检查是否有重复数据，如有则停止
+            if (firstPageDuplicate > 0) {
+                log.warn("第1页检测到{}条重复数据，停止爬取", firstPageDuplicate);
+                shouldStop = true;
+            }
+            
+            // 循环爬取剩余页面
+            if (!shouldStop && totalPages > 1) {
+                for (int page = 2; page <= totalPages; page++) {
+                    if (!isCrawlerRunning) {
+                        log.info("爬虫被手动停止");
+                        break;
+                    }
+                    
+                    log.info("开始爬取第{}页", page);
+                    List<String> pageArgs = new ArrayList<>();
+                    pageArgs.add(String.valueOf(mid));
+                    pageArgs.add(String.valueOf(page));
+                    
+                    String pageOutput = executePythonScript("getUpVideoData.py", pageArgs);
+                    log.info("第{}页爬取完成，结果：{}", page, pageOutput);
+                    
+                    // 解析页面结果
+                    int pageSuccess = 0;
+                    int pageDuplicate = 0;
+                    
+                    if (pageOutput.contains("成功数：")) {
+                        String[] lines = pageOutput.split("\n");
+                        for (String line : lines) {
+                            if (line.contains("成功数：")) {
+                                String numStr = line.substring(line.indexOf("成功数：") + 4).trim();
+                                try {
+                                    pageSuccess = Integer.parseInt(numStr);
+                                } catch (NumberFormatException e) {
+                                    log.warn("解析成功数失败：{}", e.getMessage());
+                                }
+                            } else if (line.contains("重复数：")) {
+                                String numStr = line.substring(line.indexOf("重复数：") + 4).trim();
+                                try {
+                                    pageDuplicate = Integer.parseInt(numStr);
+                                } catch (NumberFormatException e) {
+                                    log.warn("解析重复数失败：{}", e.getMessage());
+                                }
+                            }
+                        }
+                    }
+                    
+                    totalSuccess += pageSuccess;
+                    totalDuplicate += pageDuplicate;
+                    
+                    // 检查是否有重复数据，如有则停止
+                    if (pageDuplicate > 0) {
+                        log.warn("第{}页检测到{}条重复数据，停止爬取", page, pageDuplicate);
+                        shouldStop = true;
+                        break;
+                    }
+                    
+                    // 延迟一下，避免请求过快
+                    try {
+                        Thread.sleep(2000);
+                    } catch (InterruptedException e) {
+                        log.warn("线程被中断：{}", e.getMessage());
+                        break;
+                    }
+                }
+            }
+            
+            result.put("success", totalSuccess > 0);
+            result.put("mid", mid);
+            result.put("successCount", totalSuccess);
+            result.put("duplicateCount", totalDuplicate);
+            result.put("totalPages", totalPages);
+            
+        } catch (Exception e) {
+            log.error("执行爬虫失败：{}", e.getMessage(), e);
+            result.put("success", false);
+            result.put("error", e.getMessage());
+        } finally {
+            // 清除线程引用
+            crawlerThread = null;
+            // 标记爬虫执行完成
+            isCrawlerRunning = false;
+            log.info("设置爬虫状态为停止");
+        }
+        
+        return result;
     }
 
 }

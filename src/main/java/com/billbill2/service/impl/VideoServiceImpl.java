@@ -13,8 +13,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.OutputStream;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @Service
 public class VideoServiceImpl extends ServiceImpl<VideoMapper, Video> implements VideoService {
@@ -144,6 +149,7 @@ public class VideoServiceImpl extends ServiceImpl<VideoMapper, Video> implements
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public boolean batchSaveOrUpdateVideoByBvNum(List<Video> videoList) {
         if (videoList == null || videoList.isEmpty()) {
             log.info("视频数据列表为空，无需保存");
@@ -152,17 +158,12 @@ public class VideoServiceImpl extends ServiceImpl<VideoMapper, Video> implements
         
         log.info("开始批量保存视频数据，总数量：{}", videoList.size());
         
-        // 设置默认值：是否下载为0，文件大小为0，保存路径为空
-        for (Video video : videoList) {
-            video.setIsDownload(0);
-            video.setFileSize(0L);
-            video.setSavePath("");
-        }
-        
         // 分批处理，每批处理100条，避免内存溢出
         int batchSize = 100;
         int total = videoList.size();
         int processed = 0;
+        int successCount = 0;
+        int failCount = 0;
         
         try {
             for (int i = 0; i < total; i += batchSize) {
@@ -171,11 +172,45 @@ public class VideoServiceImpl extends ServiceImpl<VideoMapper, Video> implements
                 
                 log.info("处理批次：{}-{}/{}，数量：{}", i + 1, endIndex, total, batchList.size());
                 
-                // 使用MyBatis-Plus的批量保存或更新方法
-                boolean success = this.saveOrUpdateBatch(batchList);
-                if (!success) {
-                    log.error("批次保存失败：{}-{}", i + 1, endIndex);
-                    return false;
+                for (Video video : batchList) {
+                    try {
+                        // 检查BV号是否已存在
+                        LambdaQueryWrapper<Video> queryWrapper = new LambdaQueryWrapper<>();
+                        queryWrapper.eq(Video::getBvNum, video.getBvNum());
+                        Video existVideo = this.getOne(queryWrapper, false);
+                        
+                        if (existVideo != null) {
+                            // 存在则更新
+                            LambdaUpdateWrapper<Video> updateWrapper = new LambdaUpdateWrapper<>();
+                            updateWrapper.eq(Video::getBvNum, video.getBvNum())
+                                .set(Video::getLikeCount, video.getLikeCount())
+                                .set(Video::getCoinCount, video.getCoinCount())
+                                .set(Video::getFavoriteCount, video.getFavoriteCount())
+                                .set(Video::getDanmakuCount, video.getDanmakuCount())
+                                .set(Video::getPlayCount, video.getPlayCount())
+                                .set(Video::getSavePath, video.getSavePath());
+                            
+                            boolean updateSuccess = this.update(updateWrapper);
+                            if (updateSuccess) {
+                                successCount++;
+                            } else {
+                                failCount++;
+                                log.warn("更新视频失败：{}", video.getBvNum());
+                            }
+                        } else {
+                            // 不存在则插入
+                            boolean saveSuccess = this.save(video);
+                            if (saveSuccess) {
+                                successCount++;
+                            } else {
+                                failCount++;
+                                log.warn("插入视频失败：{}", video.getBvNum());
+                            }
+                        }
+                    } catch (Exception e) {
+                        failCount++;
+                        log.warn("处理视频失败：{} - {}", video.getBvNum(), e.getMessage());
+                    }
                 }
                 
                 processed += batchList.size();
@@ -186,11 +221,89 @@ public class VideoServiceImpl extends ServiceImpl<VideoMapper, Video> implements
                 }
             }
             
-            log.info("批量保存视频数据完成，成功处理：{}/{}", processed, total);
-            return true;
+            log.info("批量保存视频数据完成，成功：{}/{}，失败：{}", successCount, total, failCount);
+            return failCount == 0;
             
         } catch (Exception e) {
             log.error("批量保存视频数据失败", e);
+            return false;
+        }
+    }
+
+    @Override
+    public List<Video> getVideosByBvNums(List<String> bvNums) {
+        if (bvNums == null || bvNums.isEmpty()) {
+            return Collections.emptyList();
+        }
+        
+        log.info("根据BV号列表获取视频信息，数量：{}", bvNums.size());
+        
+        try {
+            LambdaQueryWrapper<Video> queryWrapper = new LambdaQueryWrapper<>();
+            queryWrapper.in(Video::getBvNum, bvNums);
+            List<Video> videos = this.list(queryWrapper);
+            log.info("获取到视频信息数量：{}", videos.size());
+            return videos;
+        } catch (Exception e) {
+            log.error("根据BV号列表获取视频信息失败", e);
+            return Collections.emptyList();
+        }
+    }
+
+    @Override
+    public boolean packageVideosToZip(List<String> bvNums, OutputStream outputStream) {
+        if (bvNums == null || bvNums.isEmpty() || outputStream == null) {
+            return false;
+        }
+        
+        log.info("开始打包视频文件，BV号数量：{}", bvNums.size());
+        
+        try (ZipOutputStream zos = new ZipOutputStream(outputStream)) {
+            byte[] buffer = new byte[8192]; // 8KB 缓冲区
+            
+            // 获取视频信息
+            List<Video> videos = getVideosByBvNums(bvNums);
+            int successCount = 0;
+            
+            for (Video video : videos) {
+                if (video.getIsDownload() != 1 || video.getSavePath() == null || video.getSavePath().isEmpty()) {
+                    log.warn("视频未下载，跳过打包：{}", video.getBvNum());
+                    continue;
+                }
+                
+                // 拼接文件路径：savePath + 文件名（格式：【文件名】-BV号.mp4）
+                String fileName = "【" + video.getName() + "】-" + video.getBvNum() + ".mp4";
+                String filePath = video.getSavePath() + File.separator + fileName;
+                File videoFile = new File(filePath);
+                
+                if (!videoFile.exists() || !videoFile.isFile()) {
+                    log.warn("视频文件不存在，跳过打包：{}", filePath);
+                    continue;
+                }
+                
+                // 添加文件到压缩包
+                ZipEntry entry = new ZipEntry(fileName);
+                zos.putNextEntry(entry);
+                
+                // 流式写入文件内容
+                try (FileInputStream fis = new FileInputStream(videoFile)) {
+                    int bytesRead;
+                    while ((bytesRead = fis.read(buffer)) != -1) {
+                        zos.write(buffer, 0, bytesRead);
+                    }
+                }
+                
+                zos.closeEntry();
+                successCount++;
+                log.info("打包视频文件成功：{}", fileName);
+            }
+            
+            log.info("视频文件打包完成，成功打包 {} 个文件", successCount);
+            // 当没有成功打包的文件时，返回 false
+            return successCount > 0;
+            
+        } catch (Exception e) {
+            log.error("打包视频文件失败", e);
             return false;
         }
     }

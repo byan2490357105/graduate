@@ -2,6 +2,7 @@ package com.billbill2.service;
 
 import com.billbill2.entity.Video;
 
+import java.io.OutputStream;
 import java.util.List;
 import java.util.Map;
 
@@ -34,4 +35,19 @@ public interface VideoService {
      */
     boolean batchSaveOrUpdateVideoByBvNum(List<Video> videoList);
 
-}
+    /**
+     * 根据BV号列表获取视频信息
+     * @param bvNums BV号列表
+     * @return 视频信息列表
+     */
+    List<Video> getVideosByBvNums(List<String> bvNums);
+
+    /**
+     * 打包视频文件为ZIP并输出到流
+     * @param bvNums BV号列表
+     * @param outputStream 输出流
+     * @return 打包是否成功
+     */
+    boolean packageVideosToZip(List<String> bvNums, OutputStream outputStream);
+
+} 

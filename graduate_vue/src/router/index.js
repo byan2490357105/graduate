@@ -30,6 +30,16 @@ const routes = [
     path: '/wordcloud',
     name: 'WordCloud',
     component: () => import('@/views/WordCloud.vue')
+  },
+  {
+    path: '/video-statistics',
+    name: 'VideoStatistics',
+    component: () => import('@/views/VideoStatistics.vue')
+  },
+  {
+    path: '/up-video-crawler',
+    name: 'UpVideoCrawler',
+    component: () => import('@/views/UpVideoCrawler.vue')
   }
 ]
 

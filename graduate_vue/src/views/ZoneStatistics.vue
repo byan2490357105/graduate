@@ -36,17 +36,39 @@
         <button :disabled="loading" @click="refreshData">
           {{ loading ? '刷新中...' : '刷新数据' }}
         </button>
+        <button :disabled="loading" @click="toggleMainChart">
+          {{ showMainChart ? '隐藏B站分区数据统计' : '显示B站分区数据统计' }}
+        </button>
+        <button :disabled="loading" @click="toggleCountChart">
+          {{ showCountChart ? '隐藏数据库内数据条数' : '显示数据库内数据条数' }}
+        </button>
+        <button :disabled="loading" @click="toggleHeatmap">
+          {{ showHeatmap ? '隐藏发布时间热力图' : '查看发布时间热力图' }}
+        </button>
       </div>
     </div>
     
     <div v-if="errorMessage" class="error">{{ errorMessage }}</div>
     
-    <div class="chart-container">
+    <div v-if="showMainChart" class="chart-container">
       <div ref="chartRef" style="width: 100%; height: 100%;"></div>
     </div>
     
-    <div class="chart-container">
+    <div v-if="showCountChart" class="chart-container">
       <div ref="countChartRef" style="width: 100%; height: 100%;"></div>
+    </div>
+    
+    <div v-if="showHeatmap" class="chart-container">
+      <div ref="heatmapRef" style="width: 100%; height: 100%;"></div>
+    </div>
+    
+    <div v-if="showHeatmap && peakHourInfo.length > 0" class="peak-hour-info">
+      <h3>发布时间高峰期分析</h3>
+      <ul>
+        <li v-for="info in peakHourInfo" :key="info.pidV2">
+          {{ info.zoneName }}分区集中在{{ info.peakHour }}发布
+        </li>
+      </ul>
     </div>
   </div>
 </template>
@@ -96,13 +118,19 @@ const oldBiliZones = {
 
 const chartRef = ref(null)
 const countChartRef = ref(null)
+const heatmapRef = ref(null)
 const selectedZones = ref(biliZones.map(z => z.id))
 const dataType = ref('avgPlayCount')
 const loading = ref(false)
 const errorMessage = ref('')
+const showMainChart = ref(true) // 默认显示B站分区数据统计
+const showCountChart = ref(true) // 默认显示数据库内数据条数
+const showHeatmap = ref(false)
+const peakHourInfo = ref([])
 
 let chart = null
 let countChart = null
+let heatmap = null
 
 const initChart = () => {
   if (chartRef.value) {
@@ -180,6 +208,72 @@ const initCountChart = () => {
   }
 }
 
+const initHeatmap = () => {
+  if (heatmapRef.value) {
+    try {
+      heatmap = echarts.init(heatmapRef.value)
+      heatmap.setOption({
+        title: {
+          text: '各分区发布时间热力图',
+          left: 'center'
+        },
+        tooltip: {
+          position: 'top'
+        },
+        grid: {
+          height: '50%',
+          top: '10%'
+        },
+        xAxis: {
+          type: 'category',
+          data: ['00:00', '01:00', '02:00', '03:00', '04:00', '05:00', '06:00', '07:00', '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00', '23:00'],
+          splitArea: {
+            show: true
+          }
+        },
+        yAxis: {
+          type: 'category',
+          data: [],
+          splitArea: {
+            show: true
+          }
+        },
+        visualMap: {
+          min: 0,
+          max: 100,
+          calculable: true,
+          orient: 'horizontal',
+          left: 'center',
+          bottom: '5%',
+          inRange: {
+            color: ['#e0f2ff', '#bae6fd', '#7dd3fc', '#38bdf8', '#0ea5e9', '#0284c7', '#0369a1', '#075985', '#0c4a6e']
+          }
+        },
+        series: [{
+          name: '发布数量',
+          type: 'heatmap',
+          data: [],
+          label: {
+            show: true
+          },
+          emphasis: {
+            itemStyle: {
+              shadowBlur: 10,
+              shadowColor: 'rgba(0, 0, 0, 0.5)'
+            }
+          }
+        }]
+      })
+    } catch (error) {
+      console.error('初始化热力图失败:', error)
+      heatmap = null
+    }
+  } else {
+    console.error('热力图容器未找到')
+    heatmap = null
+  }
+}
+
 const refreshData = async () => {
   const selectedZoneIds = selectedZones.value
     .map(id => oldBiliZones[id])
@@ -194,13 +288,20 @@ const refreshData = async () => {
   errorMessage.value = ''
   
   try {
-    const [statisticsRes, countRes] = await Promise.all([
+    const promises = [
       biliApi.getRegionStatistics({ pidV2List: selectedZoneIds }),
       biliApi.getDataCount({ pidV2List: selectedZoneIds })
-    ])
+    ]
     
-    if (statisticsRes.data.code === 200) {
-      const statisticsList = statisticsRes.data.data
+    if (showHeatmap.value) {
+      promises.push(biliApi.getPublishTimeDistribution({ pidV2List: selectedZoneIds }))
+    }
+    
+    const results = await Promise.all(promises)
+    
+    // 处理统计数据
+    if (results[0].data.code === 200) {
+      const statisticsList = results[0].data.data
       if (statisticsList && statisticsList.length > 0) {
         const zoneNames = []
         const values = []
@@ -244,8 +345,9 @@ const refreshData = async () => {
       }
     }
     
-    if (countRes.data.code === 200) {
-      const countList = countRes.data.data
+    // 处理数据条数
+    if (results[1].data.code === 200) {
+      const countList = results[1].data.data
       if (countList && countList.length > 0) {
         const zoneNames = []
         const counts = []
@@ -270,6 +372,74 @@ const refreshData = async () => {
         })
       }
     }
+    
+    // 处理发布时间分布
+    if (showHeatmap.value && results.length > 2 && results[2].data.code === 200) {
+      const distributionList = results[2].data.data
+      if (distributionList && distributionList.length > 0) {
+        const zoneNames = []
+        const heatmapData = []
+        const peakHourInfoList = []
+        
+        distributionList.forEach(distributionItem => {
+          const pidV2 = distributionItem.pidV2
+          const distribution = distributionItem.distribution
+          const peakHour = distributionItem.peakHour || '无数据'
+          
+          // 找到对应的分区名称
+          let zoneName = '未知分区'
+          for (const [newId, oldId] of Object.entries(oldBiliZones)) {
+            if (oldId === pidV2) {
+              const zone = biliZones.find(z => z.id === newId)
+              if (zone) {
+                zoneName = zone.name
+              }
+              break
+            }
+          }
+          
+          zoneNames.push(zoneName)
+          
+          // 生成热力图数据
+          const hours = ['00:00', '01:00', '02:00', '03:00', '04:00', '05:00', '06:00', '07:00', '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00', '23:00']
+          hours.forEach((hour, index) => {
+            const value = distribution[hour] || 0
+            heatmapData.push([index, zoneNames.length - 1, value])
+          })
+          
+          // 添加高峰期信息
+          peakHourInfoList.push({
+            pidV2,
+            zoneName,
+            peakHour
+          })
+        })
+        
+        // 更新高峰期信息
+        peakHourInfo.value = peakHourInfoList
+        
+        // 确保热力图已初始化
+        if (heatmap) {
+          heatmap.setOption({
+            yAxis: { data: zoneNames },
+            series: [{
+              data: heatmapData
+            }]
+          })
+        } else {
+          // 如果热力图未初始化，先初始化再设置数据
+          initHeatmap()
+          if (heatmap) {
+            heatmap.setOption({
+              yAxis: { data: zoneNames },
+              series: [{
+                data: heatmapData
+              }]
+            })
+          }
+        }
+      }
+    }
   } catch (error) {
     errorMessage.value = '查询失败：' + error.message
   } finally {
@@ -280,11 +450,38 @@ const refreshData = async () => {
 const handleResize = () => {
   chart?.resize()
   countChart?.resize()
+  heatmap?.resize()
+}
+
+const toggleMainChart = () => {
+  showMainChart.value = !showMainChart.value
+}
+
+const toggleCountChart = () => {
+  showCountChart.value = !showCountChart.value
+}
+
+const toggleHeatmap = async () => {
+  showHeatmap.value = !showHeatmap.value
+  if (showHeatmap.value) {
+    // 等待 DOM 更新，确保热力图容器已渲染
+    await new Promise(resolve => setTimeout(resolve, 100))
+    // 初始化热力图
+    initHeatmap()
+    // 刷新数据以显示热力图
+    if (heatmap) {
+      await refreshData()
+    } else {
+      errorMessage.value = '热力图初始化失败，请重试'
+      showHeatmap.value = false
+    }
+  }
 }
 
 onMounted(() => {
   initChart()
   initCountChart()
+  initHeatmap() // 初始化热力图（默认隐藏）
   refreshData()
   window.addEventListener('resize', handleResize)
 })
@@ -293,6 +490,7 @@ onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
   chart?.dispose()
   countChart?.dispose()
+  heatmap?.dispose()
 })
 </script>
 
@@ -341,5 +539,36 @@ onUnmounted(() => {
   width: 100%;
   height: 600px;
   margin-top: 20px;
+}
+
+.peak-hour-info {
+  margin: 20px 0;
+  padding: 15px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.peak-hour-info h3 {
+  margin-top: 0;
+  color: #333;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.peak-hour-info ul {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0 0;
+}
+
+.peak-hour-info li {
+  padding: 5px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.peak-hour-info li:last-child {
+  border-bottom: none;
 }
 </style>

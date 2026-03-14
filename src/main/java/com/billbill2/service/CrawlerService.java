@@ -5,6 +5,7 @@ import com.billbill2.DTO.CommentRequestDTO;
 import com.billbill2.entity.Video;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public interface CrawlerService {
@@ -84,4 +85,10 @@ public interface CrawlerService {
      */
     List<Video> batchGetVideoDataByBvNum(List<String> bvNumList);
 
+    /**
+     * 爬取UP主视频信息
+     * @param mid UP主ID
+     * @return 爬取结果
+     */
+    Map<String, Object> crawlUpVideoData(Long mid);
 }
