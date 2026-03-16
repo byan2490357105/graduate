@@ -256,7 +256,7 @@ public class VideoServiceImpl extends ServiceImpl<VideoMapper, Video> implements
             return false;
         }
         
-        log.info("开始打包视频文件，BV号数量：{}", bvNums.size());
+        log.info("开始打包视频文件（版本一），BV号数量：{}", bvNums.size());
         
         try (ZipOutputStream zos = new ZipOutputStream(outputStream)) {
             byte[] buffer = new byte[8192]; // 8KB 缓冲区
@@ -271,7 +271,7 @@ public class VideoServiceImpl extends ServiceImpl<VideoMapper, Video> implements
                     continue;
                 }
                 
-                // 拼接文件路径：savePath + 文件名（格式：【文件名】-BV号.mp4）
+                // 拼接文件路径：savePath + 文件名(格式：【文件名】-BV号.mp4)
                 String fileName = "【" + video.getName() + "】-" + video.getBvNum() + ".mp4";
                 String filePath = video.getSavePath() + File.separator + fileName;
                 File videoFile = new File(filePath);
@@ -298,12 +298,84 @@ public class VideoServiceImpl extends ServiceImpl<VideoMapper, Video> implements
                 log.info("打包视频文件成功：{}", fileName);
             }
             
-            log.info("视频文件打包完成，成功打包 {} 个文件", successCount);
+            log.info("视频文件打包完成（版本一），成功打包 {} 个文件", successCount);
             // 当没有成功打包的文件时，返回 false
             return successCount > 0;
             
         } catch (Exception e) {
-            log.error("打包视频文件失败", e);
+            log.error("打包视频文件失败（版本一）", e);
+            return false;
+        }
+    }
+
+    @Override
+    public boolean packageVideosToZip(List<String> bvNums, OutputStream outputStream, Long mid) {
+        if (bvNums == null || bvNums.isEmpty() || outputStream == null) {
+            return false;
+        }
+        
+        log.info("开始打包视频文件（版本二），BV号数量：{}，UP主ID：{}", bvNums.size(), mid);
+        
+        // 分批打包，每批40条数据
+        int batchSize = 40;
+        int total = bvNums.size();
+        int batchCount = (total + batchSize - 1) / batchSize;
+        int successCount = 0;
+        
+        try (ZipOutputStream zos = new ZipOutputStream(outputStream)) {
+            byte[] buffer = new byte[8192]; // 8KB 缓冲区
+            
+            // 分批处理
+            for (int batch = 0; batch < batchCount; batch++) {
+                int startIndex = batch * batchSize;
+                int endIndex = Math.min(startIndex + batchSize, total);
+                List<String> batchBvNums = bvNums.subList(startIndex, endIndex);
+                
+                log.info("处理批次 {}/{}，BV号数量：{}", batch + 1, batchCount, batchBvNums.size());
+                
+                // 获取当前批次的视频信息
+                List<Video> videos = getVideosByBvNums(batchBvNums);
+                
+                for (Video video : videos) {
+                    if (video.getIsDownload() != 1 || video.getSavePath() == null || video.getSavePath().isEmpty()) {
+                        log.warn("视频未下载，跳过打包：{}", video.getBvNum());
+                        continue;
+                    }
+                    
+                    // 拼接文件路径：savePath + 文件名(格式：【文件名】-BV号.mp4)
+                    String fileName = "【" + video.getName() + "】-" + video.getBvNum() + ".mp4";
+                    String filePath = video.getSavePath() + File.separator + fileName;
+                    File videoFile = new File(filePath);
+                    
+                    if (!videoFile.exists() || !videoFile.isFile()) {
+                        log.warn("视频文件不存在，跳过打包：{}", filePath);
+                        continue;
+                    }
+                    
+                    // 添加文件到压缩包
+                    ZipEntry entry = new ZipEntry(fileName);
+                    zos.putNextEntry(entry);
+                    
+                    // 流式写入文件内容
+                    try (FileInputStream fis = new FileInputStream(videoFile)) {
+                        int bytesRead;
+                        while ((bytesRead = fis.read(buffer)) != -1) {
+                            zos.write(buffer, 0, bytesRead);
+                        }
+                    }
+                    
+                    zos.closeEntry();
+                    successCount++;
+                    log.info("打包视频文件成功：{}", fileName);
+                }
+            }
+            
+            log.info("视频文件打包完成（版本二），成功打包 {} 个文件", successCount);
+            // 当没有成功打包的文件时，返回 false
+            return successCount > 0;
+            
+        } catch (Exception e) {
+            log.error("打包视频文件失败（版本二）", e);
             return false;
         }
     }

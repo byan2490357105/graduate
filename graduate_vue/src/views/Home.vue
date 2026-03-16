@@ -4,7 +4,7 @@
     <div class="nav-container">
       <router-link to="/comment" class="nav-link">获取评论功能</router-link>
       <router-link to="/video" class="nav-link">获取视频功能</router-link>
-      <router-link to="/analysis" class="nav-link">B站分区数据分析</router-link>
+      <router-link to="/analysis" class="nav-link">按分区获取B站数据</router-link>
       <router-link to="/statistics" class="nav-link">B站数据分区统计</router-link>
       <router-link to="/wordcloud" class="nav-link">B站数据词云展示</router-link>
       <router-link to="/video-statistics" class="nav-link">B站视频数据统计</router-link>

@@ -9,11 +9,7 @@ import java.time.LocalDateTime;
 @Data
 @TableName("upvideo")
 public class UpVideo {
-    private Integer comment; // 评论数
-
     private Integer typeid; // 视频类型
-
-    private Long play; // 播放量
 
     private String title; // 视频标题
 

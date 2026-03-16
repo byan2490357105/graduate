@@ -245,9 +245,7 @@ def get_video_data(mid, page_num):
             video_list = []
             for video in vlist:
                 video_info = {
-                    'comment': video.get('comment', 0),
                     'typeid': video.get('typeid', 0),
-                    'play': video.get('play', 0),
                     'title': video.get('title', ''),
                     'author': video.get('author', ''),
                     'mid': video.get('mid', 0),

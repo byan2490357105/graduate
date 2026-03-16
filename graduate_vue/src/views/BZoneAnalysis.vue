@@ -1,7 +1,7 @@
 <template>
   <div class="container">
     <div class="page-header">
-      <h1>B站分区数据分析</h1>
+      <h1>按分区获取B站数据</h1>
       <router-link to="/">
         <button class="back-btn">返回首页</button>
       </router-link>
@@ -17,14 +17,18 @@
       </select>
     </div>
     
-    <div class="page-inputs">
-      <div class="form-group">
-        <label for="startPage">起始页：</label>
-        <input id="startPage" v-model.number="startPage" type="number" min="1" />
-      </div>
-      <div class="form-group">
-        <label for="endPage">结束页：</label>
-        <input id="endPage" v-model.number="endPage" type="number" min="1" />
+    <div v-if="showPageInputs" class="page-inputs-section">
+      <div class="page-inputs-hint">📋 以下页号设置仅对"获取数据"按钮有效</div>
+      <div class="page-inputs">
+        <div class="form-group">
+          <label for="startPage">起始页：</label>
+          <input id="startPage" v-model.number="startPage" type="number" min="1" />
+        </div>
+        <div class="form-group">
+          <label for="endPage">结束页：</label>
+          <input id="endPage" v-model.number="endPage" type="number" min="1" max="50" @input="validateEndPage" />
+          <div v-if="endPageError" class="error-hint">{{ endPageError }}</div>
+        </div>
       </div>
     </div>
     
@@ -59,6 +63,14 @@
         @click="collectZoneVideoData"
       >
         {{ videoLoading ? '正在收集视频数据中' : '保留分区视频参数（录入tag）' }}
+      </button>
+      <button 
+        id="exportUpCsvBtn" 
+        class="export-btn" 
+        :disabled="!selectedZone || exportLoading"
+        @click="exportUpListToCsv"
+      >
+        {{ exportLoading ? '正在导出中...' : '获取分区(' + getSelectedZoneName() + ')up主mid和名称并保存为csv' }}
       </button>
     </div>
     
@@ -114,16 +126,42 @@ const biliZones = [
 const selectedZone = ref('')
 const startPage = ref(1)
 const endPage = ref(10)
+const endPageError = ref('')
 const loading = ref(false)
 const commentLoading = ref(false)
 const videoLoading = ref(false)
+const exportLoading = ref(false)
 const crawlerRunning = ref(false)
 const resultVisible = ref(false)
 const errorVisible = ref(false)
 const resultContent = ref('')
 const errorContent = ref('')
+const showPageInputs = ref(true)
 
 let crawlerStatusInterval = null
+
+let clearErrorTimer = null
+
+const validateEndPage = () => {
+  if (endPage.value > 50) {
+    endPageError.value = '单次爬取，结束页号最大为50'
+    endPage.value = 50
+    if (clearErrorTimer) {
+      clearTimeout(clearErrorTimer)
+    }
+    clearErrorTimer = setTimeout(() => {
+      endPageError.value = ''
+    }, 3000)
+  } else if (endPage.value > 0 && endPage.value <= 50) {
+    endPageError.value = ''
+  }
+}
+
+const getSelectedZoneName = () => {
+  if (!selectedZone.value) return ''
+  const zone = biliZones.find(z => z.id === selectedZone.value)
+  return zone ? zone.name : ''
+}
 
 const showResult = (content) => {
   resultContent.value = content
@@ -171,6 +209,8 @@ const startCrawlerStatusCheck = () => {
 }
 
 const submitZoneData = async () => {
+  showPageInputs.value = true
+  
   if (crawlerStatusInterval !== null) {
     showError('爬虫正在运行中，请等待完成')
     return
@@ -227,6 +267,8 @@ const stopCrawler = async () => {
 }
 
 const collectZoneComment = async () => {
+  showPageInputs.value = false
+  
   if (crawlerStatusInterval !== null) {
     showError('爬虫正在运行中，请等待完成')
     return
@@ -259,6 +301,8 @@ const collectZoneComment = async () => {
 }
 
 const collectZoneVideoData = async () => {
+  showPageInputs.value = false
+  
   if (crawlerStatusInterval !== null) {
     showError('爬虫正在运行中，请等待完成')
     return
@@ -284,6 +328,36 @@ const collectZoneVideoData = async () => {
   }
 }
 
+const exportUpListToCsv = async () => {
+  showPageInputs.value = false
+  
+  if (!selectedZone.value) {
+    showError('请选择一个分区')
+    return
+  }
+  
+  exportLoading.value = true
+  showResult('正在导出分区UP主信息...')
+  
+  try {
+    const zoneName = getSelectedZoneName()
+    const url = `/api/bilibili/region/export-up-csv?pidV2=${selectedZone.value}`
+    
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${zoneName}_up主列表_${new Date().toISOString().split('T')[0]}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    
+    showResult(`已开始导出分区(${zoneName})的UP主信息\n请查看浏览器的下载列表`)
+  } catch (error) {
+    showError('导出失败：' + error.message)
+  } finally {
+    exportLoading.value = false
+  }
+}
+
 onMounted(() => {
 })
 
@@ -295,6 +369,21 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.page-inputs-section {
+  margin-bottom: 15px;
+  padding: 15px;
+  background-color: #f6ffed;
+  border: 1px solid #b7eb8f;
+  border-radius: 8px;
+}
+
+.page-inputs-hint {
+  color: #52c41a;
+  font-size: 14px;
+  margin-bottom: 10px;
+  font-weight: 500;
+}
+
 .page-inputs {
   display: flex;
   gap: 10px;
@@ -302,6 +391,26 @@ onUnmounted(() => {
 
 .page-inputs .form-group {
   flex: 1;
+  position: relative;
+}
+
+.error-hint {
+  color: #ff4d4f;
+  font-size: 12px;
+  margin-top: 5px;
+  font-weight: 500;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .button-group {
@@ -335,5 +444,13 @@ onUnmounted(() => {
 
 .video-btn:hover:not(:disabled) {
   background-color: #9254de;
+}
+
+.export-btn {
+  background-color: #fa8c16;
+}
+
+.export-btn:hover:not(:disabled) {
+  background-color: #ffa940;
 }
 </style>

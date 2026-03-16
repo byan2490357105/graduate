@@ -9,10 +9,17 @@ import com.billbill2.service.BZoneGetDataService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.servlet.http.HttpServletResponse;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -84,5 +91,91 @@ public class BZoneGetDataServiceImpl extends ServiceImpl<BZoneDataMapper,NewRegi
         }
         
         return bvNumList;
+    }
+
+    private static final int VIDEO_COUNT_THRESHOLD = 3; // 判定UP主属于该分区的视频数量阈值
+
+    @Override
+    @Transactional(readOnly = true)
+    public void exportUpListToCsv(Integer pidV2, HttpServletResponse response) {
+        Map<Long, String> upInfoMap = new HashMap<>();
+        Map<Long, Integer> upVideoCountMap = new HashMap<>();
+        BufferedWriter writer = null;
+        
+        try {
+            response.setContentType("text/csv;charset=UTF-8");
+            response.setCharacterEncoding("UTF-8");
+            String fileName = "up_list_" + pidV2 + ".csv";
+            response.setHeader("Content-Disposition", "attachment; filename=\"" + fileName + "\"");
+            
+            writer = new BufferedWriter(new OutputStreamWriter(response.getOutputStream(), StandardCharsets.UTF_8));
+            writer.write("\uFEFF");
+            writer.write("UP主MID,UP主名称,视频数量");
+            writer.newLine();
+            
+            int pageSize = 5000;
+            int pageNo = 1;
+            int totalCount = 0;
+            
+            while (true) {
+                com.baomidou.mybatisplus.extension.plugins.pagination.Page<NewRegionData> page = 
+                    new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(pageNo, pageSize);
+                
+                LambdaQueryWrapper<NewRegionData> queryWrapper = new LambdaQueryWrapper<>();
+                queryWrapper.eq(NewRegionData::getPidV2, pidV2)
+                           .isNotNull(NewRegionData::getUpId)
+                           .isNotNull(NewRegionData::getUpName)
+                           .select(NewRegionData::getUpId, NewRegionData::getUpName);
+                
+                com.baomidou.mybatisplus.core.metadata.IPage<NewRegionData> resultPage = this.page(page, queryWrapper);
+                
+                List<NewRegionData> records = resultPage.getRecords();
+                if (records.isEmpty()) {
+                    break;
+                }
+                
+                for (NewRegionData data : records) {
+                    if (data.getUpId() != null && data.getUpName() != null) {
+                        upInfoMap.put(data.getUpId(), data.getUpName());
+                        upVideoCountMap.put(data.getUpId(), upVideoCountMap.getOrDefault(data.getUpId(), 0) + 1);
+                    }
+                }
+                
+                if (resultPage.getCurrent() >= resultPage.getPages()) {
+                    break;
+                }
+                
+                pageNo++;
+            }
+            
+            for (Map.Entry<Long, Integer> entry : upVideoCountMap.entrySet()) {
+                Long upId = entry.getKey();
+                Integer videoCount = entry.getValue();
+                
+                if (videoCount > VIDEO_COUNT_THRESHOLD) {
+                    String upName = upInfoMap.get(upId);
+                    if (upName != null) {
+                        String upNameEscaped = upName.replace("\"", "\"\"");
+                        writer.write(upId.toString() + ",\"" + upNameEscaped + "\"," + videoCount);
+                        writer.newLine();
+                        totalCount++;
+                    }
+                }
+            }
+            
+            writer.flush();
+            System.out.println("导出UP主数量：" + totalCount);
+            System.out.println("符合条件的UP主（视频数量>" + VIDEO_COUNT_THRESHOLD + "）：" + totalCount);
+            
+        } catch (IOException e) {
+            throw new RuntimeException("导出CSV失败：" + e.getMessage(), e);
+        } finally {
+            if (writer != null) {
+                try {
+                    writer.close();
+                } catch (IOException e) {
+                }
+            }
+        }
     }
 }

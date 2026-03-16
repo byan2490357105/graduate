@@ -110,7 +110,7 @@
         <div v-for="(item, index) in qualityData" :key="item.bvNum" class="quality-item">
           <div class="quality-rank">{{ index + 1 }}</div>
           <div class="quality-info">
-            <div class="quality-title">{{ item.name }}</div>
+            <div class="quality-title" @click="openVideoPage(item.bvNum)">{{ item.name }}</div>
             <div class="quality-up">UP主：{{ item.upName }}</div>
             <div class="quality-stats">
               <span v-if="activeTab === 'quality'">质量评分：{{ item.score }}</span>
@@ -153,7 +153,7 @@
             <tbody>
               <tr v-for="(video, index) in zone.videos" :key="video.bvNum">
                 <td>{{ index + 1 }}</td>
-                <td>{{ video.name }}</td>
+                <td><span class="video-link" @click="openVideoPage(video.bvNum)">{{ video.name }}</span></td>
                 <td>{{ video.upName }}</td>
                 <td>{{ formatNumber(video.playCount) }}</td>
                 <td>{{ formatNumber(video.likeCount) }}</td>
@@ -256,6 +256,11 @@ const formatDuration = (seconds) => {
 const formatTime = (time) => {
   if (!time) return '-'
   return time.substring(0, 16)
+}
+
+const openVideoPage = (bvNum) => {
+  const videoUrl = 'https://www.bilibili.com/video/' + bvNum
+  window.open(videoUrl, '_blank')
 }
 
 // 初始化分布图表
@@ -698,6 +703,12 @@ onUnmounted(() => {
   font-weight: bold;
   margin-bottom: 8px;
   color: #333;
+  cursor: pointer;
+  transition: color 0.3s;
+}
+
+.quality-title:hover {
+  color: #1890ff;
 }
 
 .quality-up {
@@ -787,6 +798,18 @@ onUnmounted(() => {
 
 .video-table tr:hover {
   background-color: #f5f5f5;
+}
+
+.video-link {
+  color: #1890ff;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 0.3s;
+}
+
+.video-link:hover {
+  color: #096dd9;
+  text-decoration: underline;
 }
 
 .no-data {

@@ -304,6 +304,8 @@ public class CrawlerServiceImpl implements CrawlerService {
 
     @Override
     public CompletableFuture<Boolean> downloadVideoToLocal(String bvNum, String savePath) {
+        final String finalSavePath = (savePath == null) ? defaultSavePath : savePath;
+        
         return CompletableFuture.supplyAsync(() -> {
             try {
                 String bvUrl = "https://www.bilibili.com/video/" + bvNum;
@@ -316,7 +318,7 @@ public class CrawlerServiceImpl implements CrawlerService {
                         "--no-progress",
                         "--quiet",
                         "--force-ipv4",
-                        "-o", savePath,
+                        "-o", finalSavePath,
                         bvUrl
                 };
                 Process process = new ProcessBuilder(cmd)
@@ -341,11 +343,6 @@ public class CrawlerServiceImpl implements CrawlerService {
         Video video = new Video();
         video.setBvNum(bvNum);
         
-        CompletableFuture<Boolean> downloadFuture = null;
-        if (needDownload) {
-            downloadFuture = downloadVideoToLocal(bvNum, savePath);
-        }
-        
         try {
             Video videoData = getVideoData(bvNum, savePath);
             
@@ -364,17 +361,16 @@ public class CrawlerServiceImpl implements CrawlerService {
             video.setCoverUrl(videoData.getCoverUrl());
             video.setPublishTime(videoData.getPublishTime());
             
-            if (needDownload && downloadFuture != null) {
-                boolean isDownloadSuccess = downloadFuture.get();
-                video.setIsDownload(isDownloadSuccess ? 1 : 0);
+            if (needDownload) {
+                Long fileSize = donwloadVideoLocal(bvNum, videoData.getName(), savePath);
+                video.setIsDownload(fileSize > 0 ? 1 : 0);
                 
-                if (isDownloadSuccess) {
+                if (fileSize > 0) {
                     video.setSavePath(savePath);
-                    File videoFile = new File(savePath);
-                    if (videoFile.exists()) {
-                        video.setFileSize(videoFile.length());
-                        log.info("视频下载成功：BV={}, 文件大小={}字节", bvNum, videoFile.length());
-                    }
+                    video.setFileSize(fileSize);
+                    log.info("视频下载成功：BV={}, 文件大小={}字节", bvNum, fileSize);
+                } else {
+                    log.warn("视频下载失败：BV={}", bvNum);
                 }
             } else {
                 video.setIsDownload(0);
@@ -725,10 +721,16 @@ public class CrawlerServiceImpl implements CrawlerService {
             totalSuccess += firstPageSuccess;
             totalDuplicate += firstPageDuplicate;
             
-            // 检查是否有重复数据，如有则停止
-            if (firstPageDuplicate > 0) {
-                log.warn("第1页检测到{}条重复数据，停止爬取", firstPageDuplicate);
-                shouldStop = true;
+            // 记录连续重复页数
+            int consecutiveDuplicatePages = 0;
+            int lastProcessedPage = 1;
+            
+            // 检查第1页是否全部重复（成功数为0且重复数>0）
+            if (firstPageSuccess == 0 && firstPageDuplicate > 0) {
+                consecutiveDuplicatePages = 1;
+                log.warn("第1页全部重复（成功：{}，重复：{}）", firstPageSuccess, firstPageDuplicate);
+            } else {
+                consecutiveDuplicatePages = 0;
             }
             
             // 循环爬取剩余页面
@@ -774,10 +776,20 @@ public class CrawlerServiceImpl implements CrawlerService {
                     
                     totalSuccess += pageSuccess;
                     totalDuplicate += pageDuplicate;
+                    lastProcessedPage = page;
                     
-                    // 检查是否有重复数据，如有则停止
-                    if (pageDuplicate > 0) {
-                        log.warn("第{}页检测到{}条重复数据，停止爬取", page, pageDuplicate);
+                    // 检查该页是否全部重复（成功数为0且重复数>0）
+                    if (pageSuccess == 0 && pageDuplicate > 0) {
+                        consecutiveDuplicatePages++;
+                        log.warn("第{}页全部重复（成功：{}，重复：{}），连续重复页数：{}", page, pageSuccess, pageDuplicate, consecutiveDuplicatePages);
+                    } else {
+                        // 重置连续重复页数计数
+                        consecutiveDuplicatePages = 0;
+                    }
+                    
+                    // 检查连续重复页数是否达到3页，如有则停止
+                    if (consecutiveDuplicatePages >= 3) {
+                        log.warn("连续{}页全部重复，停止爬取", consecutiveDuplicatePages);
                         shouldStop = true;
                         break;
                     }
@@ -792,11 +804,134 @@ public class CrawlerServiceImpl implements CrawlerService {
                 }
             }
             
-            result.put("success", totalSuccess > 0);
+            // 只要执行了爬取操作（没有异常），就返回success=true
+            // 即使遇到重复数据，也应该返回成功，因为可能已经有部分数据入库
+            result.put("success", true);
             result.put("mid", mid);
             result.put("successCount", totalSuccess);
             result.put("duplicateCount", totalDuplicate);
             result.put("totalPages", totalPages);
+            result.put("lastProcessedPage", lastProcessedPage);
+            
+            // 如果因为连续3页重复而停止，添加提示信息
+            if (consecutiveDuplicatePages >= 3) {
+                result.put("stopReason", String.format("获取该up主(%d)第%d页时，发现连续3页数据全部重复，估计以后的页面已经录入数据库，停止爬取", mid, lastProcessedPage));
+            }
+            
+        } catch (Exception e) {
+            log.error("执行爬虫失败：{}", e.getMessage(), e);
+            result.put("success", false);
+            result.put("error", e.getMessage());
+        } finally {
+            // 清除线程引用
+            crawlerThread = null;
+            // 标记爬虫执行完成
+            isCrawlerRunning = false;
+            log.info("设置爬虫状态为停止");
+        }
+        
+        return result;
+    }
+
+    @Override
+    public Map<String, Object> crawlUpVideoData(Long mid, Boolean usePageRange, Integer startPage, Integer endPage) {
+        if (usePageRange == null || !usePageRange) {
+            return crawlUpVideoData(mid);
+        }
+        
+        Map<String, Object> result = new HashMap<>();
+        
+        log.info("开始爬取UP主[{}]的视频数据（页码范围：{}-{}）", mid, startPage, endPage);
+        
+        if (startPage == null || startPage < 1) {
+            result.put("success", false);
+            result.put("error", "起始页必须大于0");
+            return result;
+        }
+        
+        if (endPage == null || endPage < 1) {
+            result.put("success", false);
+            result.put("error", "结束页必须大于0");
+            return result;
+        }
+        
+        if (startPage > endPage) {
+            result.put("success", false);
+            result.put("error", "起始页不能大于结束页");
+            return result;
+        }
+        
+        // 标记爬虫正在执行
+        isCrawlerRunning = true;
+        log.info("设置爬虫状态为运行中");
+        
+        // 保存当前线程引用
+        crawlerThread = Thread.currentThread();
+        
+        try {
+            int totalSuccess = 0;
+            int totalDuplicate = 0;
+            boolean shouldStop = false;
+            
+            // 循环爬取指定页码范围的页面
+            for (int page = startPage; page <= endPage; page++) {
+                if (!isCrawlerRunning) {
+                    log.info("爬虫被手动停止");
+                    break;
+                }
+                
+                log.info("开始爬取第{}页", page);
+                List<String> pageArgs = new ArrayList<>();
+                pageArgs.add(String.valueOf(mid));
+                pageArgs.add(String.valueOf(page));
+                
+                String pageOutput = executePythonScript("getUpVideoData.py", pageArgs);
+                log.info("第{}页爬取完成，结果：{}", page, pageOutput);
+                
+                // 解析页面结果
+                int pageSuccess = 0;
+                int pageDuplicate = 0;
+                
+                if (pageOutput.contains("成功数：")) {
+                    String[] lines = pageOutput.split("\n");
+                    for (String line : lines) {
+                        if (line.contains("成功数：")) {
+                            String numStr = line.substring(line.indexOf("成功数：") + 4).trim();
+                            try {
+                                pageSuccess = Integer.parseInt(numStr);
+                            } catch (NumberFormatException e) {
+                                log.warn("解析成功数失败：{}", e.getMessage());
+                            }
+                        } else if (line.contains("重复数：")) {
+                            String numStr = line.substring(line.indexOf("重复数：") + 4).trim();
+                            try {
+                                pageDuplicate = Integer.parseInt(numStr);
+                            } catch (NumberFormatException e) {
+                                log.warn("解析重复数失败：{}", e.getMessage());
+                            }
+                        }
+                    }
+                }
+                
+                totalSuccess += pageSuccess;
+                totalDuplicate += pageDuplicate;
+                
+                // 延迟一下，避免请求过快
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+                    log.warn("线程被中断：{}", e.getMessage());
+                    break;
+                }
+            }
+            
+            result.put("success", true);
+            result.put("mid", mid);
+            result.put("successCount", totalSuccess);
+            result.put("duplicateCount", totalDuplicate);
+            result.put("totalPages", endPage - startPage + 1);
+            result.put("startPage", startPage);
+            result.put("endPage", endPage);
             
         } catch (Exception e) {
             log.error("执行爬虫失败：{}", e.getMessage(), e);

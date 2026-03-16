@@ -91,4 +91,14 @@ public interface CrawlerService {
      * @return 爬取结果
      */
     Map<String, Object> crawlUpVideoData(Long mid);
+
+    /**
+     * 爬取UP主视频信息（支持页码范围）
+     * @param mid UP主ID
+     * @param usePageRange 是否使用页码范围
+     * @param startPage 起始页
+     * @param endPage 结束页
+     * @return 爬取结果
+     */
+    Map<String, Object> crawlUpVideoData(Long mid, Boolean usePageRange, Integer startPage, Integer endPage);
 }

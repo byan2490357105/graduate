@@ -3,6 +3,7 @@ package com.billbill2.service;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.billbill2.entity.NewRegionData;
 
+import javax.servlet.http.HttpServletResponse;
 import java.util.List;
 import java.util.Map;
 
@@ -28,4 +29,11 @@ public interface BZoneGetDataService extends IService<NewRegionData> {
      * @return bv号列表
      */
     List<String> getBZoneAllBvNumByPidV2(Integer pidV2);
+
+    /**
+     * 导出指定分区的UP主mid和名称到CSV文件
+     * @param pidV2 分区ID
+     * @param response HTTP响应对象
+     */
+    void exportUpListToCsv(Integer pidV2, HttpServletResponse response);
 }

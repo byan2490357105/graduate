@@ -43,11 +43,20 @@ public interface VideoService {
     List<Video> getVideosByBvNums(List<String> bvNums);
 
     /**
-     * 打包视频文件为ZIP并输出到流
+     * 打包视频文件为ZIP并输出到流（版本一：供GetVideo.vue页面使用）
      * @param bvNums BV号列表
      * @param outputStream 输出流
      * @return 打包是否成功
      */
     boolean packageVideosToZip(List<String> bvNums, OutputStream outputStream);
+
+    /**
+     * 打包视频文件为ZIP并输出到流（版本二：供UpVideoCrawler.vue页面使用，支持分批打包）
+     * @param bvNums BV号列表
+     * @param outputStream 输出流
+     * @param mid UP主ID
+     * @return 打包是否成功
+     */
+    boolean packageVideosToZip(List<String> bvNums, OutputStream outputStream, Long mid);
 
 } 

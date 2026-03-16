@@ -99,9 +99,7 @@ public class UpVideoDataController {
     private UpVideo convertToUpVideo(Map<String, Object> videoData) {
         UpVideo upVideo = new UpVideo();
 
-        upVideo.setComment(getIntValue(videoData.get("comment")));
         upVideo.setTypeid(getIntValue(videoData.get("typeid")));
-        upVideo.setPlay(getLongValue(videoData.get("play")));
         upVideo.setTitle(getStringValue(videoData.get("title")));
         upVideo.setAuthor(getStringValue(videoData.get("author")));
         upVideo.setMid(getLongValue(videoData.get("mid")));

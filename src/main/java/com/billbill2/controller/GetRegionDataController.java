@@ -9,8 +9,10 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
+import javax.servlet.http.HttpServletResponse;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -232,6 +234,34 @@ public class GetRegionDataController {
             errorMap.put("msg", "服务器内部错误：" + e.getMessage());
 
             return ResponseEntity.internalServerError().body(errorMap);
+        }
+    }
+
+    @GetMapping("/api/bilibili/region/export-up-csv")
+    public void exportUpListToCsv(
+            @RequestParam("pidV2") Integer pidV2,
+            HttpServletResponse response) {
+        try {
+            log.info("接收到导出分区UP主CSV请求，分区ID：{}", pidV2);
+            
+            if (pidV2 == null) {
+                response.setContentType("application/json;charset=UTF-8");
+                response.getWriter().write("{\"code\":400,\"msg\":\"缺少分区ID参数\"}");
+                return;
+            }
+            
+            bZoneGetDataService.exportUpListToCsv(pidV2, response);
+            
+            log.info("导出分区UP主CSV成功，分区ID：{}", pidV2);
+            
+        } catch (Exception e) {
+            log.error("导出分区UP主CSV失败：{}", e.getMessage(), e);
+            try {
+                response.setContentType("application/json;charset=UTF-8");
+                response.getWriter().write("{\"code\":500,\"msg\":\"服务器内部错误：" + e.getMessage() + "\"}");
+            } catch (Exception ex) {
+                log.error("写入错误响应失败", ex);
+            }
         }
     }
 }
