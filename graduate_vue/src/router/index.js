@@ -40,6 +40,11 @@ const routes = [
     path: '/up-video-crawler',
     name: 'UpVideoCrawler',
     component: () => import('@/views/UpVideoCrawler.vue')
+  },
+  {
+    path: '/up-video-analysis',
+    name: 'UpVideoAnalysis',
+    component: () => import('@/views/UpVideoAnalysis.vue')
   }
 ]
 

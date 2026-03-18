@@ -3,6 +3,7 @@ package com.billbill2.service;
 
 import com.billbill2.DTO.CommentRequestDTO;
 import com.billbill2.entity.Video;
+import com.billbill2.entity.UpVideoData;
 
 import java.util.List;
 import java.util.Map;
@@ -84,6 +85,14 @@ public interface CrawlerService {
      * @return 视频数据列表
      */
     List<Video> batchGetVideoDataByBvNum(List<String> bvNumList);
+
+    /**
+     * 根据bv号列表调用Python脚本获取视频数据（专门为UpVideoData实体类设计）
+     * @param bvNumList bv号列表
+     * @param mid UP主ID
+     * @return UpVideoData列表
+     */
+    List<UpVideoData> batchGetUpVideoDataByBvNum(List<String> bvNumList, Long mid);
 
     /**
      * 爬取UP主视频信息

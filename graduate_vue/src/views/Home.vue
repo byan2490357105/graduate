@@ -9,6 +9,7 @@
       <router-link to="/wordcloud" class="nav-link">B站数据词云展示</router-link>
       <router-link to="/video-statistics" class="nav-link">B站视频数据统计</router-link>
       <router-link to="/up-video-crawler" class="nav-link">UP主视频信息获取</router-link>
+      <router-link to="/up-video-analysis" class="nav-link">UP主视频数据分析</router-link>
     </div>
   </div>
 </template>

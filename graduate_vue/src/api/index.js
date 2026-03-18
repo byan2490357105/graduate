@@ -91,6 +91,30 @@ export const biliApi = {
 
   checkBvExists(bvNum) {
     return api.get('/api/bilibili/upvideo/exists', { params: { bvNum } })
+  },
+
+  importUpVideoData(data) {
+    return api.post('/api/bilibili/up-video-analysis/import', data)
+  },
+
+  getImportStatus(mid) {
+    return api.get('/api/bilibili/up-video-analysis/import-status', { params: { mid } })
+  },
+
+  getUpStatistics(mid) {
+    return api.get('/api/bilibili/up-video-analysis/statistics', { params: { mid } })
+  },
+
+  getMonthlyVideoCount(mid, year) {
+    return api.get('/api/bilibili/up-video-analysis/monthly-count', { params: { mid, year } })
+  },
+
+  getYearlyTrend(mid, year) {
+    return api.get('/api/bilibili/up-video-analysis/trend', { params: { mid, year } })
+  },
+
+  terminateTask(data) {
+    return api.post('/api/bilibili/up-video-analysis/terminate', data)
   }
 }
 
