@@ -24,7 +24,6 @@
         批量下载到本地
       </button>
       <button id="resetBtn" class="reset-btn" @click="resetInput">重置输入</button>
-      <button id="clearBtn" class="clear-btn" @click="clearDatabase">清空视频数据库</button>
     </div>
     
     <div class="status-area">
