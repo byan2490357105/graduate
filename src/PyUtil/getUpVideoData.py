@@ -321,7 +321,6 @@ if __name__ == '__main__':
             sys.exit(1)
         
         utf8_print(f"🚀 开始爬取UP主[{mid}]的第{page}页数据")
-        utf8_print(f"📌 Java后端地址：http://localhost:8080/api/bilibili/upvideo-data/save")
         
         # 爬取单个页面
         success, total_pages, success_count, duplicate_count, duplicate_bv_nums = crawl_single_page(mid, page)

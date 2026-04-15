@@ -753,10 +753,10 @@ public class CrawlerServiceImpl implements CrawlerService {
     }
 
     @Override
-    public Map<String, Object> crawlUpVideoData(Long mid) {
+    public Map<String, Object> crawlUpVideoData(Long mid, Boolean continueOnDuplicate) {
         Map<String, Object> result = new HashMap<>();
         
-        log.info("开始爬取UP主[{}]的视频数据", mid);
+        log.info("开始爬取UP主[{}]的视频数据，continueOnDuplicate: {}", mid, continueOnDuplicate);
         
         // 标记爬虫正在执行
         isCrawlerRunning = true;
@@ -770,6 +770,7 @@ public class CrawlerServiceImpl implements CrawlerService {
             int totalDuplicate = 0;
             int totalPages = 0;
             boolean shouldStop = false;
+            List<Integer> failedPages = new ArrayList<>();
             
             // 先爬取第1页获取总页数
             log.info("开始爬取第1页，获取总页数");
@@ -783,6 +784,7 @@ public class CrawlerServiceImpl implements CrawlerService {
             // 解析第1页结果，获取总页数和成功数
             int firstPageSuccess = 0;
             int firstPageDuplicate = 0;
+            boolean firstPageFailed = false;
             
             // 解析第1页结果，获取总页数和成功数
             if (firstPageOutput.contains("TOTAL_PAGES:")) {
@@ -811,6 +813,8 @@ public class CrawlerServiceImpl implements CrawlerService {
                         } catch (NumberFormatException e) {
                             log.warn("解析重复数失败：{}", e.getMessage());
                         }
+                    } else if (line.contains("❌ 第1页获取失败")) {
+                        firstPageFailed = true;
                     }
                 }
             } else {
@@ -829,7 +833,15 @@ public class CrawlerServiceImpl implements CrawlerService {
                             }
                         }
                     }
+                } else {
+                    // 如果输出中不包含总页数，可能是爬取失败
+                    firstPageFailed = true;
                 }
+            }
+            
+            if (firstPageFailed) {
+                failedPages.add(1);
+                log.warn("第1页爬取失败");
             }
             
             totalSuccess += firstPageSuccess;
@@ -866,6 +878,7 @@ public class CrawlerServiceImpl implements CrawlerService {
                     // 解析页面结果
                     int pageSuccess = 0;
                     int pageDuplicate = 0;
+                    boolean pageFailed = false;
                     
                     if (pageOutput.contains("成功数：")) {
                         String[] lines = pageOutput.split("\n");
@@ -884,8 +897,18 @@ public class CrawlerServiceImpl implements CrawlerService {
                                 } catch (NumberFormatException e) {
                                     log.warn("解析重复数失败：{}", e.getMessage());
                                 }
+                            } else if (line.contains("❌ 第" + page + "页获取失败")) {
+                                pageFailed = true;
                             }
                         }
+                    } else {
+                        // 如果输出中不包含成功数，可能是爬取失败
+                        pageFailed = true;
+                    }
+                    
+                    if (pageFailed) {
+                        failedPages.add(page);
+                        log.warn("第{}页爬取失败", page);
                     }
                     
                     totalSuccess += pageSuccess;
@@ -901,8 +924,8 @@ public class CrawlerServiceImpl implements CrawlerService {
                         consecutiveDuplicatePages = 0;
                     }
                     
-                    // 检查连续重复页数是否达到3页，如有则停止
-                    if (consecutiveDuplicatePages >= 3) {
+                    // 检查连续重复页数是否达到3页，如有则停止（除非设置了continueOnDuplicate）
+                    if (!continueOnDuplicate && consecutiveDuplicatePages >= 3) {
                         log.warn("连续{}页全部重复，停止爬取", consecutiveDuplicatePages);
                         shouldStop = true;
                         break;
@@ -926,6 +949,7 @@ public class CrawlerServiceImpl implements CrawlerService {
             result.put("duplicateCount", totalDuplicate);
             result.put("totalPages", totalPages);
             result.put("lastProcessedPage", lastProcessedPage);
+            result.put("failedPages", failedPages);
             
             // 如果因为连续3页重复而停止，添加提示信息
             if (consecutiveDuplicatePages >= 3) {
@@ -948,9 +972,9 @@ public class CrawlerServiceImpl implements CrawlerService {
     }
 
     @Override
-    public Map<String, Object> crawlUpVideoData(Long mid, Boolean usePageRange, Integer startPage, Integer endPage) {
+    public Map<String, Object> crawlUpVideoData(Long mid, Boolean usePageRange, Integer startPage, Integer endPage, Boolean continueOnDuplicate) {
         if (usePageRange == null || !usePageRange) {
-            return crawlUpVideoData(mid);
+            return crawlUpVideoData(mid, continueOnDuplicate);
         }
         
         Map<String, Object> result = new HashMap<>();
@@ -986,9 +1010,17 @@ public class CrawlerServiceImpl implements CrawlerService {
             int totalSuccess = 0;
             int totalDuplicate = 0;
             boolean shouldStop = false;
+            List<Integer> failedPages = new ArrayList<>();
+            int totalPages = -1; // 总页数，-1表示未获取到
             
             // 循环爬取指定页码范围的页面
             for (int page = startPage; page <= endPage; page++) {
+                // 如果已经获取到总页数，且当前页超过总页数，则退出循环
+                if (totalPages > 0 && page > totalPages) {
+                    log.info("当前页{}已超过总页数{}，退出爬虫", page, totalPages);
+                    break;
+                }
+                
                 if (!isCrawlerRunning) {
                     log.info("爬虫被手动停止");
                     break;
@@ -1005,6 +1037,7 @@ public class CrawlerServiceImpl implements CrawlerService {
                 // 解析页面结果
                 int pageSuccess = 0;
                 int pageDuplicate = 0;
+                boolean pageFailed = false;
                 
                 if (pageOutput.contains("成功数：")) {
                     String[] lines = pageOutput.split("\n");
@@ -1023,8 +1056,27 @@ public class CrawlerServiceImpl implements CrawlerService {
                             } catch (NumberFormatException e) {
                                 log.warn("解析重复数失败：{}", e.getMessage());
                             }
+                        } else if (line.contains("TOTAL_PAGES:")) {
+                            // 解析总页数
+                            String numStr = line.substring(line.indexOf("TOTAL_PAGES:") + 12).trim();
+                            try {
+                                totalPages = Integer.parseInt(numStr);
+                                log.info("解析总页数成功：{}", totalPages);
+                            } catch (NumberFormatException e) {
+                                log.warn("解析总页数失败：{}", e.getMessage());
+                            }
+                        } else if (line.contains("❌ 第" + page + "页获取失败")) {
+                            pageFailed = true;
                         }
                     }
+                } else {
+                    // 如果输出中不包含成功数，可能是爬取失败
+                    pageFailed = true;
+                }
+                
+                if (pageFailed) {
+                    failedPages.add(page);
+                    log.warn("第{}页爬取失败", page);
                 }
                 
                 totalSuccess += pageSuccess;
@@ -1043,9 +1095,10 @@ public class CrawlerServiceImpl implements CrawlerService {
             result.put("mid", mid);
             result.put("successCount", totalSuccess);
             result.put("duplicateCount", totalDuplicate);
-            result.put("totalPages", endPage - startPage + 1);
+            result.put("totalPages", totalPages > 0 ? totalPages : (endPage - startPage + 1));
             result.put("startPage", startPage);
             result.put("endPage", endPage);
+            result.put("failedPages", failedPages);
             
         } catch (Exception e) {
             log.error("执行爬虫失败：{}", e.getMessage(), e);

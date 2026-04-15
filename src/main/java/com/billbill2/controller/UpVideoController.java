@@ -66,8 +66,11 @@ public class UpVideoController {
 
             log.info("收到爬取UP主[{}]视频信息的请求，页码范围：{}", mid, usePageRange ? (startPage + "-" + endPage) : "全部");
 
+            // 获取continueOnDuplicate参数
+            Boolean continueOnDuplicate = request.get("continueOnDuplicate") != null ? Boolean.valueOf(request.get("continueOnDuplicate").toString()) : false;
+            
             // 调用CrawlerService爬取数据
-            Map<String, Object> crawlResult = crawlerService.crawlUpVideoData(mid, usePageRange, startPage, endPage);
+            Map<String, Object> crawlResult = crawlerService.crawlUpVideoData(mid, usePageRange, startPage, endPage, continueOnDuplicate);
 
             if ((boolean) crawlResult.get("success")) {
                 // 查询数据库中该up主的视频数据

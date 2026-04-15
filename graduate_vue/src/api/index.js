@@ -115,6 +115,19 @@ export const biliApi = {
 
   terminateTask(data) {
     return api.post('/api/bilibili/up-video-analysis/terminate', data)
+  },
+
+  // 异步爬虫相关API
+  startCrawler(data) {
+    return api.post('/api/bilibili/up-video-crawler/start', data)
+  },
+
+  getCrawlerStatus(taskId) {
+    return api.get('/api/bilibili/up-video-crawler/status', { params: { taskId } })
+  },
+
+  stopCrawlerTask(data) {
+    return api.post('/api/bilibili/up-video-crawler/stop', data)
   }
 }
 

@@ -97,9 +97,10 @@ public interface CrawlerService {
     /**
      * 爬取UP主视频信息
      * @param mid UP主ID
+     * @param continueOnDuplicate 是否在遇到重复数据时继续爬取
      * @return 爬取结果
      */
-    Map<String, Object> crawlUpVideoData(Long mid);
+    Map<String, Object> crawlUpVideoData(Long mid, Boolean continueOnDuplicate);
 
     /**
      * 爬取UP主视频信息（支持页码范围）
@@ -107,7 +108,8 @@ public interface CrawlerService {
      * @param usePageRange 是否使用页码范围
      * @param startPage 起始页
      * @param endPage 结束页
+     * @param continueOnDuplicate 是否在遇到重复数据时继续爬取
      * @return 爬取结果
      */
-    Map<String, Object> crawlUpVideoData(Long mid, Boolean usePageRange, Integer startPage, Integer endPage);
+    Map<String, Object> crawlUpVideoData(Long mid, Boolean usePageRange, Integer startPage, Integer endPage, Boolean continueOnDuplicate);
 }

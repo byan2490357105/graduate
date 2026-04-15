@@ -29,6 +29,18 @@
       </label>
     </div>
 
+    <div class="form-group">
+      <label class="checkbox-label">
+        <input
+          v-model="continueOnDuplicate"
+          type="checkbox"
+          :disabled="loading"
+        />
+        <span>获取到重复数据时仍然获取</span>
+      </label>
+      <p class="hint">提示：勾选后，即使遇到连续重复的页面，也会继续爬取所有页面，否则当连续获取3页重复页面后终止爬虫</p>
+    </div>
+
     <div v-if="usePageRange" class="page-range-group">
       <div class="page-range-inputs">
         <div class="page-input">
@@ -60,6 +72,9 @@
       <button id="submitBtn" :disabled="loading || !midInput.trim()" @click="startCrawl">
         {{ loading ? '爬取中...' : (usePageRange ? '获取该up主的指定页视频信息' : '获取该up主的全部视频信息') }}
       </button>
+      <button v-if="loading" id="stopBtn" class="stop-btn" @click="stopCrawlerTask" :disabled="!loading">
+        停止爬虫
+      </button>
       <button id="resetBtn" class="reset-btn" @click="resetForm" :disabled="loading">重置</button>
     </div>
 
@@ -83,10 +98,13 @@
           <h4>🎉 爬取完成！</h4>
           <div class="result-summary">
             <p>UP主ID：{{ result.mid }}</p>
-            <p>总页数：{{ result.totalPages }}</p>
+            <p>该UP主视频总页数：{{ result.totalPages }}</p>
             <p>已处理页数：{{ result.lastProcessedPage }} 页</p>
             <p>成功保存：{{ result.successCount }} 条</p>
             <p v-if="result.duplicateCount > 0">重复数据：{{ result.duplicateCount }} 条（已自动跳过）</p>
+            <p v-if="result.failedPages && result.failedPages.length > 0" class="failed-pages">
+              爬取失败页号：{{ result.failedPages.join(', ') }} 
+            </p>
             <p v-if="result.stopReason" class="stop-reason">{{ result.stopReason }}</p>
           </div>
 
@@ -205,7 +223,7 @@
 </template>
 
 <script setup>
-import { ref, watch, computed, onMounted } from 'vue'
+import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import { biliApi } from '@/api'
 
 const midInput = ref('')
@@ -222,6 +240,9 @@ const lastCrawledMid = ref(null)
 const usePageRange = ref(false)
 const startPage = ref(1)
 const endPage = ref(10)
+const continueOnDuplicate = ref(false)
+const taskId = ref('')
+const pollingInterval = ref(null)
 
 // 视频列表和分页相关
 const allVideos = ref([])
@@ -335,45 +356,95 @@ const startCrawl = async () => {
   currentVideoPage.value = 1
 
   try {
+    // 调用新的异步API启动爬虫任务
     const requestData = { 
       mid: mid,
       usePageRange: usePageRange.value,
       startPage: usePageRange.value ? parseInt(startPage.value) : null,
-      endPage: usePageRange.value ? parseInt(endPage.value) : null
+      endPage: usePageRange.value ? parseInt(endPage.value) : null,
+      continueOnDuplicate: continueOnDuplicate.value
     }
 
-    const { data } = await biliApi.crawlUpVideo(requestData)
+    const { data } = await biliApi.startCrawler(requestData)
 
     if (data.code === 200) {
-      status.value = 'success'
-      result.value = data.data || {}
+      taskId.value = data.data.taskId
       lastCrawledMid.value = mid
-
-      // 使用返回结果中的视频列表，如果没有则调用fetchVideoList
-      if (result.value.videoList && result.value.videoList.length > 0) {
-        videoList.value = result.value.videoList
-      } else {
-        // 获取该UP主的视频列表用于展示
-        await fetchVideoList(mid)
-      }
-
-      // 获取所有视频用于分页和选择
-      await fetchAllVideos(mid)
+      
+      // 开始轮询任务状态
+      startPolling()
     } else {
       status.value = 'error'
-      errorTitle.value = '爬取失败'
+      errorTitle.value = '启动失败'
       errorStatus.value = data.code
       errorMessage.value = data.msg
+      loading.value = false
     }
   } catch (error) {
     status.value = 'error'
     errorTitle.value = '请求失败'
     errorStatus.value = '网络错误'
     errorMessage.value = error.message
-  } finally {
     loading.value = false
-    currentPage.value = 0
   }
+}
+
+// 开始轮询任务状态
+const startPolling = () => {
+  if (pollingInterval.value) {
+    clearInterval(pollingInterval.value)
+  }
+
+  pollingInterval.value = setInterval(async () => {
+    try {
+      const { data } = await biliApi.getCrawlerStatus(taskId.value)
+      
+      if (data.code === 200) {
+        const taskData = data.data
+        
+        // 更新当前页数
+        currentPage.value = taskData.currentPage
+        
+        // 更新结果数据
+        result.value = {
+          mid: taskData.mid,
+          totalPages: taskData.totalPages,
+          lastProcessedPage: taskData.currentPage,
+          successCount: taskData.successCount,
+          duplicateCount: taskData.duplicateCount,
+          failedPages: taskData.failedPages
+        }
+        
+        // 检查任务是否完成
+        if (!taskData.running) {
+          clearInterval(pollingInterval.value)
+          pollingInterval.value = null
+          loading.value = false
+          status.value = 'success'
+          
+          // 获取视频列表用于展示
+          await fetchVideoList(taskData.mid)
+          await fetchAllVideos(taskData.mid)
+        }
+      } else {
+        clearInterval(pollingInterval.value)
+        pollingInterval.value = null
+        loading.value = false
+        status.value = 'error'
+        errorTitle.value = '获取状态失败'
+        errorStatus.value = data.code
+        errorMessage.value = data.msg
+      }
+    } catch (error) {
+      clearInterval(pollingInterval.value)
+      pollingInterval.value = null
+      loading.value = false
+      status.value = 'error'
+      errorTitle.value = '获取状态失败'
+      errorStatus.value = '网络错误'
+      errorMessage.value = error.message
+    }
+  }, 2000) // 每2秒轮询一次
 }
 
 const fetchVideoList = async (mid) => {
@@ -402,7 +473,15 @@ const fetchAllVideos = async (mid) => {
 }
 
 const resetForm = () => {
+  // 清除轮询定时器
+  if (pollingInterval.value) {
+    clearInterval(pollingInterval.value)
+    pollingInterval.value = null
+  }
+  
   midInput.value = ''
+  continueOnDuplicate.value = false
+  taskId.value = ''
   status.value = 'initial'
   result.value = {}
   videoList.value = []
@@ -449,6 +528,43 @@ const handleSelectAll = () => {
 
 const updateSelectAll = () => {
   selectAll.value = selectedVideos.value.size === allVideos.value.length && allVideos.value.length > 0
+}
+
+// 组件卸载时清除轮询定时器
+onUnmounted(() => {
+  if (pollingInterval.value) {
+    clearInterval(pollingInterval.value)
+    pollingInterval.value = null
+  }
+})
+
+// 停止爬虫任务
+const stopCrawlerTask = async () => {
+  if (!taskId.value) {
+    return
+  }
+
+  try {
+    const { data } = await biliApi.stopCrawlerTask({ taskId: taskId.value })
+    
+    if (data.code === 200) {
+      // 清除轮询定时器
+      if (pollingInterval.value) {
+        clearInterval(pollingInterval.value)
+        pollingInterval.value = null
+      }
+      
+      loading.value = false
+      status.value = 'error'
+      errorTitle.value = '爬虫已停止'
+      errorStatus.value = '用户主动停止'
+      errorMessage.value = '爬虫任务已被用户手动停止'
+    } else {
+      alert('停止失败：' + data.msg)
+    }
+  } catch (error) {
+    alert('停止失败：' + error.message)
+  }
 }
 
 const downloadSelectedVideos = async () => {
@@ -619,6 +735,19 @@ const downloadSelectedVideos = async () => {
   cursor: not-allowed;
 }
 
+.stop-btn {
+  background-color: #ff4d4f;
+}
+
+.stop-btn:hover {
+  background-color: #ff7875;
+}
+
+.stop-btn:disabled {
+  background-color: #d9d9d9;
+  cursor: not-allowed;
+}
+
 .status-area {
   margin-top: 30px;
   padding: 20px;
@@ -702,6 +831,15 @@ const downloadSelectedVideos = async () => {
   padding: 8px;
   background-color: #fffbe6;
   border-left: 3px solid #faad14;
+  border-radius: 2px;
+}
+
+.failed-pages {
+  color: #ff4d4f;
+  font-weight: 500;
+  padding: 8px;
+  background-color: #fff2f0;
+  border-left: 3px solid #ff4d4f;
   border-radius: 2px;
 }
 
